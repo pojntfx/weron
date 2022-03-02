@@ -1,12 +1,19 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/pojntfx/webrtcfd/pkg/encryption"
+	"github.com/pojntfx/webrtcfd/pkg/utils"
+	"github.com/pojntfx/weron/pkg/signaling"
+	"github.com/pojntfx/weron/pkg/transport"
+	"nhooyr.io/websocket"
 )
 
 var (
@@ -27,6 +34,9 @@ func main() {
 	password := flag.String("password", "", "Password for the community")
 
 	flag.Parse()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	if strings.TrimSpace(*community) == "" {
 		panic(errInvalidCommunity)
@@ -72,4 +82,76 @@ func main() {
 	}
 
 	log.Println("Connecting to community", *community, "using signaler", *signaler, "to share file", *path)
+
+	peers := transport.NewWebRTCManager(
+		ice,
+		func(mac string, i webrtc.ICECandidate) {
+
+		},
+		func(mac string, frame []byte) {
+
+		},
+		func(mac string, o webrtc.SessionDescription) {
+
+		},
+		func(mac string, o webrtc.SessionDescription) {
+
+		},
+		func(mac string) {
+
+		},
+		func(mac string) {
+
+		},
+	)
+
+	conn, _, err := websocket.Dial(ctx, *signaler, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	mac, err := utils.GenerateMACAddress()
+	if err != nil {
+		panic(err)
+	}
+
+	signaling := signaling.NewSignalingClient(
+		conn,
+		mac,
+		*community,
+		ctx,
+		time.Minute,
+		func(mac string) {
+			if err := peers.HandleIntroduction(mac); err != nil {
+				panic(err)
+			}
+		},
+		func(mac string, o webrtc.SessionDescription) {
+			if err := peers.HandleOffer(mac, o); err != nil {
+				panic(err)
+			}
+		},
+		func(mac string, i webrtc.ICECandidateInit) {
+			if err := peers.HandleCandidate(mac, i); err != nil {
+				panic(err)
+			}
+		},
+		func(mac string, o webrtc.SessionDescription) {
+			if err := peers.HandleAnswer(mac, o); err != nil {
+				panic(err)
+			}
+		},
+		func(mac string, blocked bool) {
+			// Ignore as this can be a no-op
+			_ = peers.HandleResignation(mac)
+		},
+		func(data []byte) ([]byte, error) {
+			return encryption.Encrypt([]byte(*password), data)
+		},
+		func(data []byte) ([]byte, error) {
+			return encryption.Encrypt([]byte(*password), data)
+		},
+	)
+
+	peers.Write()
 }
