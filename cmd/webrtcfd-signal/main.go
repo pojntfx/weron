@@ -1,31 +1,21 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/websocket"
 )
-
-type inputMsg struct {
-	Message string `json:"message"`
-}
-
-type outputMsg struct {
-	Message     string `json:"message"`
-	CommunityID string `json:"communityID"`
-	PeerID      string `json:"peerID"`
-}
 
 var (
 	errMissingPath        = errors.New("missing path")
 	errMissingCommunityID = errors.New("missing community ID")
-	errMissingPeerID      = errors.New("missing peer ID")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -38,6 +28,10 @@ func main() {
 
 	log.Println("Listening on", *laddr)
 
+	// TODO: Nest connections in `community` struct and only broadcast within community
+	var connectionsLock sync.Mutex
+	connections := map[string]*websocket.Conn{}
+
 	panic(
 		http.ListenAndServe(
 			*laddr,
@@ -49,33 +43,42 @@ func main() {
 				}()
 
 				path := strings.Split(r.URL.Path, "/")
-				if len(path) < 2 {
+				if len(path) < 1 {
 					panic(errMissingPath)
 				}
 
-				communityID := path[len(path)-2]
+				communityID := path[len(path)-1]
 				if strings.TrimSpace(communityID) == "" {
 					panic(errMissingCommunityID)
-				}
-
-				peerID := path[len(path)-1]
-				if strings.TrimSpace(peerID) == "" {
-					panic(errMissingPeerID)
 				}
 
 				conn, err := upgrader.Upgrade(rw, r, nil)
 				if err != nil {
 					panic(err)
 				}
+
+				ownID, err := uuid.NewV4()
+				if err != nil {
+					panic(err)
+				}
+
+				connectionsLock.Lock()
+				connections[ownID.String()] = conn
+				connectionsLock.Unlock()
+
 				defer func() {
-					log.Println("Disconnected from client with address", r.RemoteAddr+", peer ID", peerID, "and community ID", communityID)
+					connectionsLock.Lock()
+					delete(connections, ownID.String())
+					connectionsLock.Unlock()
+
+					log.Println("Disconnected from client with address", r.RemoteAddr, "in community", communityID)
 
 					if err := conn.Close(); err != nil {
 						panic(err)
 					}
 				}()
 
-				log.Println("Connected to client with address", r.RemoteAddr+", peer ID", peerID, "and community ID", communityID)
+				log.Println("Connected to client with address", r.RemoteAddr, "in community", communityID)
 
 				if err := conn.SetReadDeadline(time.Now().Add(*heartbeat)); err != nil {
 					panic(err)
@@ -87,7 +90,7 @@ func main() {
 				pings := time.NewTicker(*heartbeat / 2)
 				defer pings.Stop()
 
-				inputs := make(chan inputMsg)
+				inputs := make(chan []byte)
 				errs := make(chan error)
 				go func() {
 					for {
@@ -102,14 +105,7 @@ func main() {
 							return
 						}
 
-						var input inputMsg
-						if err := json.Unmarshal(msg, &input); err != nil {
-							errs <- err
-
-							return
-						}
-
-						inputs <- input
+						inputs <- msg
 					}
 				}()
 
@@ -118,18 +114,18 @@ func main() {
 					case err := <-errs:
 						panic(err)
 					case input := <-inputs:
-						if err := conn.WriteJSON(
-							outputMsg{
-								Message:     "You've sent: " + input.Message,
-								CommunityID: communityID,
-								PeerID:      peerID,
-							},
-						); err != nil {
-							panic(err)
-						}
+						for id, conn := range connections {
+							if id == ownID.String() {
+								continue
+							}
 
-						if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
-							panic(err)
+							if err := conn.WriteJSON(input); err != nil {
+								panic(err)
+							}
+
+							if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
+								panic(err)
+							}
 						}
 					case <-pings.C:
 						if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
