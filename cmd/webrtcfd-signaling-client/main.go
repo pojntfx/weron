@@ -21,7 +21,7 @@ var (
 )
 
 func main() {
-	raddr := flag.String("raddr", "ws://localhost:1337", "Remote address")
+	raddr := flag.String("raddr", "wss://webrtcfd.herokuapp.com/", "Remote address")
 	timeout := flag.Duration("timeout", time.Second*10, "Time to wait for connections")
 	communityID := flag.String("community", "", "ID of community to join")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
