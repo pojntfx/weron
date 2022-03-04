@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -20,13 +19,19 @@ var (
 	upgrader = websocket.Upgrader{}
 )
 
+type input struct {
+	messageType int
+	p           []byte
+}
+
 func main() {
 	laddr := flag.String("laddr", ":1337", "Listening address")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
+	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
 
-	log.Println("Listening on", *laddr)
+	log.Println("Listening on address", *laddr)
 
 	var communitiesLock sync.Mutex
 	communities := map[string]map[string]*websocket.Conn{}
@@ -56,18 +61,16 @@ func main() {
 					panic(err)
 				}
 
-				ownID := uuid.New().String()
-
 				communitiesLock.Lock()
 				if _, exists := communities[communityID]; !exists {
 					communities[communityID] = map[string]*websocket.Conn{}
 				}
-				communities[communityID][ownID] = conn
+				communities[communityID][r.RemoteAddr] = conn
 				communitiesLock.Unlock()
 
 				defer func() {
 					communitiesLock.Lock()
-					delete(communities[communityID], ownID)
+					delete(communities[communityID], r.RemoteAddr)
 					if len(communities[communityID]) <= 0 {
 						delete(communities, communityID)
 					}
@@ -92,11 +95,11 @@ func main() {
 				pings := time.NewTicker(*heartbeat / 2)
 				defer pings.Stop()
 
-				inputs := make(chan []byte)
+				inputs := make(chan input)
 				errs := make(chan error)
 				go func() {
 					for {
-						_, msg, err := conn.ReadMessage()
+						messageType, p, err := conn.ReadMessage()
 						if err != nil {
 							if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
 								errs <- err
@@ -107,7 +110,11 @@ func main() {
 							return
 						}
 
-						inputs <- msg
+						if *verbose {
+							log.Println("Received message with type", messageType, "from client with address", r.RemoteAddr, "in community", communityID)
+						}
+
+						inputs <- input{messageType, p}
 					}
 				}()
 
@@ -117,11 +124,15 @@ func main() {
 						panic(err)
 					case input := <-inputs:
 						for id, conn := range communities[communityID] {
-							if id == ownID {
+							if id == r.RemoteAddr {
 								continue
 							}
 
-							if err := conn.WriteJSON(input); err != nil {
+							if *verbose {
+								log.Println("Sending message with type", input.messageType, "to client with address", r.RemoteAddr, "in community", communityID)
+							}
+
+							if err := conn.WriteMessage(input.messageType, input.p); err != nil {
 								panic(err)
 							}
 
@@ -130,6 +141,10 @@ func main() {
 							}
 						}
 					case <-pings.C:
+						if *verbose {
+							log.Println("Sending ping to client with address", r.RemoteAddr, "in community", communityID)
+						}
+
 						if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
 							panic(err)
 						}
