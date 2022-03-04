@@ -4,7 +4,10 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,14 +34,32 @@ func main() {
 
 	flag.Parse()
 
-	log.Println("Listening on address", *laddr)
+	addr, err := net.ResolveTCPAddr("tcp", *laddr)
+	if err != nil {
+		panic(err)
+	}
+
+	if port := os.Getenv("PORT"); port != "" {
+		if *verbose {
+			log.Println("Using port from PORT env variable")
+		}
+
+		p, err := strconv.Atoi(port)
+		if err != nil {
+			panic(err)
+		}
+
+		addr.Port = p
+	}
+
+	log.Println("Listening on address", addr.String())
 
 	var communitiesLock sync.Mutex
 	communities := map[string]map[string]*websocket.Conn{}
 
 	panic(
 		http.ListenAndServe(
-			*laddr,
+			addr.String(),
 			http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				defer func() {
 					if err := recover(); err != nil {
