@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -28,9 +28,8 @@ func main() {
 
 	log.Println("Listening on", *laddr)
 
-	// TODO: Nest connections in `community` struct and only broadcast within community
-	var connectionsLock sync.Mutex
-	connections := map[string]*websocket.Conn{}
+	var communitiesLock sync.Mutex
+	communities := map[string]map[string]*websocket.Conn{}
 
 	panic(
 		http.ListenAndServe(
@@ -57,19 +56,22 @@ func main() {
 					panic(err)
 				}
 
-				ownID, err := uuid.NewV4()
-				if err != nil {
-					panic(err)
-				}
+				ownID := uuid.New().String()
 
-				connectionsLock.Lock()
-				connections[ownID.String()] = conn
-				connectionsLock.Unlock()
+				communitiesLock.Lock()
+				if _, exists := communities[communityID]; !exists {
+					communities[communityID] = map[string]*websocket.Conn{}
+				}
+				communities[communityID][ownID] = conn
+				communitiesLock.Unlock()
 
 				defer func() {
-					connectionsLock.Lock()
-					delete(connections, ownID.String())
-					connectionsLock.Unlock()
+					communitiesLock.Lock()
+					delete(communities[communityID], ownID)
+					if len(communities[communityID]) <= 0 {
+						delete(communities, communityID)
+					}
+					communitiesLock.Unlock()
 
 					log.Println("Disconnected from client with address", r.RemoteAddr, "in community", communityID)
 
@@ -114,8 +116,8 @@ func main() {
 					case err := <-errs:
 						panic(err)
 					case input := <-inputs:
-						for id, conn := range connections {
-							if id == ownID.String() {
+						for id, conn := range communities[communityID] {
+							if id == ownID {
 								continue
 							}
 
