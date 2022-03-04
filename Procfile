@@ -1,1 +1,0 @@
-web: bin/webrtcfd-signaling-server
