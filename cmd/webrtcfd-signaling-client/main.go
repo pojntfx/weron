@@ -14,22 +14,29 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pojntfx/webrtcfd/pkg/encryption"
 )
 
 var (
 	errMissingCommunityID = errors.New("missing community ID")
+	errMissingPassword    = errors.New("missing password")
 )
 
 func main() {
 	raddr := flag.String("raddr", "wss://webrtcfd.herokuapp.com/", "Remote address")
 	timeout := flag.Duration("timeout", time.Second*10, "Time to wait for connections")
 	communityID := flag.String("community", "", "ID of community to join")
+	password := flag.String("password", "", "Password for community")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
 
 	if strings.TrimSpace(*communityID) == "" {
 		panic(errMissingCommunityID)
+	}
+
+	if strings.TrimSpace(*password) == "" {
+		panic(errMissingPassword)
 	}
 
 	log.Println("Connecting to signaler with address", *raddr)
@@ -104,14 +111,28 @@ func main() {
 				case err := <-errs:
 					panic(err)
 				case input := <-inputs:
+					input, err = encryption.Decrypt(input, []byte(*password))
+					if err != nil {
+						if *verbose {
+							log.Println("Could not decrypt message with length", len(input), "for signaler with address", conn.RemoteAddr(), "in community", *communityID+", skipping")
+						}
+
+						continue
+					}
+
 					if *verbose {
-						log.Println("Received message with length", len(input), "from signaler with address", conn.RemoteAddr(), "in community", communityID)
+						log.Println("Received message with length", len(input), "from signaler with address", conn.RemoteAddr(), "in community", *communityID)
 					}
 
 					fmt.Printf("%s\n", input)
 				case line := <-lines:
+					line, err = encryption.Encrypt(line, []byte(*password))
+					if err != nil {
+						panic(err)
+					}
+
 					if *verbose {
-						log.Println("Sending message", len(line), "to signaler with address", conn.RemoteAddr(), "in community", communityID)
+						log.Println("Sending message with length", len(line), "to signaler with address", conn.RemoteAddr(), "in community", *communityID)
 					}
 
 					if err := conn.WriteMessage(websocket.TextMessage, line); err != nil {
