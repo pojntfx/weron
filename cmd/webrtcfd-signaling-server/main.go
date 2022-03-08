@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -88,6 +89,10 @@ func main() {
 				if strings.TrimSpace(password) == "" {
 					panic(errMissingPassword)
 				}
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+				if err != nil {
+					panic(err)
+				}
 
 				conn, err := upgrader.Upgrade(rw, r, nil)
 				if err != nil {
@@ -112,11 +117,11 @@ func main() {
 				communitiesLock.Lock()
 				if _, exists := communities[communityID]; !exists {
 					communities[communityID] = community{
-						password: password,
+						password: string(hashedPassword),
 						conns:    map[string]*websocket.Conn{},
 					}
 				}
-				if communities[communityID].password != password {
+				if bcrypt.CompareHashAndPassword([]byte(communities[communityID].password), []byte(password)) != nil {
 					communitiesLock.Unlock()
 
 					panic(errWrongPassword)
