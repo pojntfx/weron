@@ -23,27 +23,32 @@ import (
 
 // Community is an object representing the database table.
 type Community struct {
-	ID       string `boil:"id" json:"id" toml:"id" yaml:"id"`
-	Password string `boil:"password" json:"password" toml:"password" yaml:"password"`
+	ID         string `boil:"id" json:"id" toml:"id" yaml:"id"`
+	Password   string `boil:"password" json:"password" toml:"password" yaml:"password"`
+	Persistent string `boil:"persistent" json:"persistent" toml:"persistent" yaml:"persistent"`
 
 	R *communityR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L communityL  `boil:"-" json:"-" toml:"-" yaml:"-"`
 }
 
 var CommunityColumns = struct {
-	ID       string
-	Password string
+	ID         string
+	Password   string
+	Persistent string
 }{
-	ID:       "id",
-	Password: "password",
+	ID:         "id",
+	Password:   "password",
+	Persistent: "persistent",
 }
 
 var CommunityTableColumns = struct {
-	ID       string
-	Password string
+	ID         string
+	Password   string
+	Persistent string
 }{
-	ID:       "communities.id",
-	Password: "communities.password",
+	ID:         "communities.id",
+	Password:   "communities.password",
+	Persistent: "communities.persistent",
 }
 
 // Generated where
@@ -72,11 +77,13 @@ func (w whereHelperstring) NIN(slice []string) qm.QueryMod {
 }
 
 var CommunityWhere = struct {
-	ID       whereHelperstring
-	Password whereHelperstring
+	ID         whereHelperstring
+	Password   whereHelperstring
+	Persistent whereHelperstring
 }{
-	ID:       whereHelperstring{field: "\"communities\".\"id\""},
-	Password: whereHelperstring{field: "\"communities\".\"password\""},
+	ID:         whereHelperstring{field: "\"communities\".\"id\""},
+	Password:   whereHelperstring{field: "\"communities\".\"password\""},
+	Persistent: whereHelperstring{field: "\"communities\".\"persistent\""},
 }
 
 // CommunityRels is where relationship names are stored.
@@ -96,8 +103,8 @@ func (*communityR) NewStruct() *communityR {
 type communityL struct{}
 
 var (
-	communityAllColumns            = []string{"id", "password"}
-	communityColumnsWithoutDefault = []string{"id", "password"}
+	communityAllColumns            = []string{"id", "password", "persistent"}
+	communityColumnsWithoutDefault = []string{"id", "password", "persistent"}
 	communityColumnsWithDefault    = []string{}
 	communityPrimaryKeyColumns     = []string{"id"}
 	communityGeneratedColumns      = []string{}
