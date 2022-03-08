@@ -18,6 +18,8 @@ import (
 var (
 	errMissingPath        = errors.New("missing path")
 	errMissingCommunityID = errors.New("missing community ID")
+	errMissingPassword    = errors.New("missing password")
+	errWrongPassword      = errors.New("wrong password")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -25,6 +27,11 @@ var (
 type input struct {
 	messageType int
 	p           []byte
+}
+
+type community struct {
+	password string
+	conns    map[string]*websocket.Conn
 }
 
 func main() {
@@ -55,7 +62,7 @@ func main() {
 	log.Println("Listening on address", addr.String())
 
 	var communitiesLock sync.Mutex
-	communities := map[string]map[string]*websocket.Conn{}
+	communities := map[string]community{}
 
 	panic(
 		http.ListenAndServe(
@@ -77,22 +84,20 @@ func main() {
 					panic(errMissingCommunityID)
 				}
 
+				password := r.URL.Query().Get("password")
+				if strings.TrimSpace(password) == "" {
+					panic(errMissingPassword)
+				}
+
 				conn, err := upgrader.Upgrade(rw, r, nil)
 				if err != nil {
 					panic(err)
 				}
 
-				communitiesLock.Lock()
-				if _, exists := communities[communityID]; !exists {
-					communities[communityID] = map[string]*websocket.Conn{}
-				}
-				communities[communityID][r.RemoteAddr] = conn
-				communitiesLock.Unlock()
-
 				defer func() {
 					communitiesLock.Lock()
-					delete(communities[communityID], r.RemoteAddr)
-					if len(communities[communityID]) <= 0 {
+					delete(communities[communityID].conns, r.RemoteAddr)
+					if len(communities[communityID].conns) <= 0 {
 						delete(communities, communityID)
 					}
 					communitiesLock.Unlock()
@@ -103,6 +108,21 @@ func main() {
 						panic(err)
 					}
 				}()
+
+				communitiesLock.Lock()
+				if _, exists := communities[communityID]; !exists {
+					communities[communityID] = community{
+						password: password,
+						conns:    map[string]*websocket.Conn{},
+					}
+				}
+				if communities[communityID].password != password {
+					communitiesLock.Unlock()
+
+					panic(errWrongPassword)
+				}
+				communities[communityID].conns[r.RemoteAddr] = conn
+				communitiesLock.Unlock()
 
 				log.Println("Connected to client with address", r.RemoteAddr, "in community", communityID)
 
@@ -144,7 +164,7 @@ func main() {
 					case err := <-errs:
 						panic(err)
 					case input := <-inputs:
-						for id, conn := range communities[communityID] {
+						for id, conn := range communities[communityID].conns {
 							if id == r.RemoteAddr {
 								continue
 							}
