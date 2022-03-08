@@ -1,0 +1,4 @@
+production:
+  dialect: sqlite3
+  datasource: /tmp/webrtcfd-communities.sqlite
+  dir: db/sqlite/migrations/communities/

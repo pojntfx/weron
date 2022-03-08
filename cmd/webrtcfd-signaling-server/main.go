@@ -7,12 +7,14 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pojntfx/webrtcfd/internal/persisters"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -36,8 +38,15 @@ type community struct {
 }
 
 func main() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	communitiesPath := filepath.Join(home, ".local", "share", "webrtcfd", "var", "lib", "webrtcfd", "communities.sqlite")
+
 	laddr := flag.String("laddr", ":1337", "Listening address")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
+	dbPath := flag.String("db", communitiesPath, "Database to use")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -61,6 +70,12 @@ func main() {
 	}
 
 	log.Println("Listening on address", addr.String())
+
+	db := persisters.NewCommunitiesPersister(*dbPath)
+
+	if err := db.Open(); err != nil {
+		panic(err)
+	}
 
 	var communitiesLock sync.Mutex
 	communities := map[string]community{}
