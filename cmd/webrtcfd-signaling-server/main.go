@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"log"
@@ -84,9 +86,11 @@ func main() {
 		http.ListenAndServe(
 			addr.String(),
 			http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				raddr := base64.StdEncoding.EncodeToString(sha256.New().Sum([]byte(r.RemoteAddr))) // Obfuscate remote address to prevent processing GDPR-sensitive information
+
 				defer func() {
 					if err := recover(); err != nil {
-						log.Println("closed connection for client with address", r.RemoteAddr+":", err)
+						log.Println("closed connection for client with address", raddr+":", err)
 					}
 				}()
 
@@ -116,13 +120,13 @@ func main() {
 
 				defer func() {
 					communitiesLock.Lock()
-					delete(communities[communityID].conns, r.RemoteAddr)
+					delete(communities[communityID].conns, raddr)
 					if len(communities[communityID].conns) <= 0 {
 						delete(communities, communityID)
 					}
 					communitiesLock.Unlock()
 
-					log.Println("Disconnected from client with address", r.RemoteAddr, "in community", communityID)
+					log.Println("Disconnected from client with address", raddr, "in community", communityID)
 
 					if err := conn.Close(); err != nil {
 						panic(err)
@@ -141,10 +145,10 @@ func main() {
 
 					panic(errWrongPassword)
 				}
-				communities[communityID].conns[r.RemoteAddr] = conn
+				communities[communityID].conns[raddr] = conn
 				communitiesLock.Unlock()
 
-				log.Println("Connected to client with address", r.RemoteAddr, "in community", communityID)
+				log.Println("Connected to client with address", raddr, "in community", communityID)
 
 				if err := conn.SetReadDeadline(time.Now().Add(*heartbeat)); err != nil {
 					panic(err)
@@ -172,7 +176,7 @@ func main() {
 						}
 
 						if *verbose {
-							log.Println("Received message with type", messageType, "from client with address", r.RemoteAddr, "in community", communityID)
+							log.Println("Received message with type", messageType, "from client with address", raddr, "in community", communityID)
 						}
 
 						inputs <- input{messageType, p}
@@ -185,12 +189,12 @@ func main() {
 						panic(err)
 					case input := <-inputs:
 						for id, conn := range communities[communityID].conns {
-							if id == r.RemoteAddr {
+							if id == raddr {
 								continue
 							}
 
 							if *verbose {
-								log.Println("Sending message with type", input.messageType, "to client with address", r.RemoteAddr, "in community", communityID)
+								log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", communityID)
 							}
 
 							if err := conn.WriteMessage(input.messageType, input.p); err != nil {
@@ -203,7 +207,7 @@ func main() {
 						}
 					case <-pings.C:
 						if *verbose {
-							log.Println("Sending ping to client with address", r.RemoteAddr, "in community", communityID)
+							log.Println("Sending ping to client with address", raddr, "in community", communityID)
 						}
 
 						if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
