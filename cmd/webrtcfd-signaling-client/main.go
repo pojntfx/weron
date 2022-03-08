@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pojntfx/webrtcfd/pkg/encryption"
+	"github.com/pojntfx/webrtcfd/internal/encryption"
 )
 
 var (

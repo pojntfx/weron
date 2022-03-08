@@ -1,0 +1,3 @@
+no-tests: true
+sqlite3:
+  dbname: /tmp/webrtcfd-communities.sqlite
