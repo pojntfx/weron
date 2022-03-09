@@ -25,7 +25,7 @@ import (
 type Community struct {
 	ID         string `boil:"id" json:"id" toml:"id" yaml:"id"`
 	Password   string `boil:"password" json:"password" toml:"password" yaml:"password"`
-	Persistent string `boil:"persistent" json:"persistent" toml:"persistent" yaml:"persistent"`
+	Persistent bool   `boil:"persistent" json:"persistent" toml:"persistent" yaml:"persistent"`
 
 	R *communityR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L communityL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -76,14 +76,23 @@ func (w whereHelperstring) NIN(slice []string) qm.QueryMod {
 	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
 }
 
+type whereHelperbool struct{ field string }
+
+func (w whereHelperbool) EQ(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.EQ, x) }
+func (w whereHelperbool) NEQ(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.NEQ, x) }
+func (w whereHelperbool) LT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.LT, x) }
+func (w whereHelperbool) LTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.LTE, x) }
+func (w whereHelperbool) GT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.GT, x) }
+func (w whereHelperbool) GTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.GTE, x) }
+
 var CommunityWhere = struct {
 	ID         whereHelperstring
 	Password   whereHelperstring
-	Persistent whereHelperstring
+	Persistent whereHelperbool
 }{
 	ID:         whereHelperstring{field: "\"communities\".\"id\""},
 	Password:   whereHelperstring{field: "\"communities\".\"password\""},
-	Persistent: whereHelperstring{field: "\"communities\".\"persistent\""},
+	Persistent: whereHelperbool{field: "\"communities\".\"persistent\""},
 }
 
 // CommunityRels is where relationship names are stored.

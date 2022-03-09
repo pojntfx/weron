@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -79,6 +80,9 @@ func main() {
 		panic(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	var communitiesLock sync.Mutex
 	communities := map[string]community{}
 
@@ -138,6 +142,12 @@ func main() {
 					communities[communityID] = community{
 						password: string(hashedPassword),
 						conns:    map[string]*websocket.Conn{},
+					}
+
+					if err := db.CreateCommunity(ctx, raddr, string(hashedPassword), false); err != nil {
+						communitiesLock.Unlock()
+
+						panic(err)
 					}
 				}
 				if bcrypt.CompareHashAndPassword([]byte(communities[communityID].password), []byte(password)) != nil {
