@@ -18,14 +18,13 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pojntfx/webrtcfd/internal/persisters"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var (
 	errMissingPath        = errors.New("missing path")
 	errMissingCommunityID = errors.New("missing community ID")
 	errMissingPassword    = errors.New("missing password")
-	errWrongPassword      = errors.New("wrong password")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -33,11 +32,6 @@ var (
 type input struct {
 	messageType int
 	p           []byte
-}
-
-type community struct {
-	password string
-	conns    map[string]*websocket.Conn
 }
 
 func main() {
@@ -53,6 +47,10 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
+
+	if *verbose {
+		boil.DebugMode = true
+	}
 
 	addr, err := net.ResolveTCPAddr("tcp", *laddr)
 	if err != nil {
@@ -74,17 +72,17 @@ func main() {
 
 	log.Println("Listening on address", addr.String())
 
-	db := persisters.NewCommunitiesPersister(*dbPath)
+	communities := persisters.NewCommunitiesPersister(*dbPath)
 
-	if err := db.Open(); err != nil {
+	if err := communities.Open(); err != nil {
 		panic(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var communitiesLock sync.Mutex
-	communities := map[string]community{}
+	var connectionsLock sync.Mutex
+	connections := map[string]map[string]*websocket.Conn{}
 
 	panic(
 		http.ListenAndServe(
@@ -112,10 +110,16 @@ func main() {
 				if strings.TrimSpace(password) == "" {
 					panic(errMissingPassword)
 				}
-				hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-				if err != nil {
+
+				if err := communities.AddClientsToCommunity(ctx, communityID, password, false); err != nil {
 					panic(err)
 				}
+
+				defer func() {
+					if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
+						panic(err)
+					}
+				}()
 
 				conn, err := upgrader.Upgrade(rw, r, nil)
 				if err != nil {
@@ -123,12 +127,12 @@ func main() {
 				}
 
 				defer func() {
-					communitiesLock.Lock()
-					delete(communities[communityID].conns, raddr)
-					if len(communities[communityID].conns) <= 0 {
-						delete(communities, communityID)
+					connectionsLock.Lock()
+					delete(connections[communityID], raddr)
+					if len(connections[communityID]) <= 0 {
+						delete(connections, communityID)
 					}
-					communitiesLock.Unlock()
+					connectionsLock.Unlock()
 
 					log.Println("Disconnected from client with address", raddr, "in community", communityID)
 
@@ -137,26 +141,12 @@ func main() {
 					}
 				}()
 
-				communitiesLock.Lock()
-				if _, exists := communities[communityID]; !exists {
-					communities[communityID] = community{
-						password: string(hashedPassword),
-						conns:    map[string]*websocket.Conn{},
-					}
-
-					if err := db.CreateCommunity(ctx, raddr, string(hashedPassword), false); err != nil {
-						communitiesLock.Unlock()
-
-						panic(err)
-					}
+				connectionsLock.Lock()
+				if _, exists := connections[communityID]; !exists {
+					connections[communityID] = map[string]*websocket.Conn{}
 				}
-				if bcrypt.CompareHashAndPassword([]byte(communities[communityID].password), []byte(password)) != nil {
-					communitiesLock.Unlock()
-
-					panic(errWrongPassword)
-				}
-				communities[communityID].conns[raddr] = conn
-				communitiesLock.Unlock()
+				connections[communityID][raddr] = conn
+				connectionsLock.Unlock()
 
 				log.Println("Connected to client with address", raddr, "in community", communityID)
 
@@ -198,7 +188,7 @@ func main() {
 					case err := <-errs:
 						panic(err)
 					case input := <-inputs:
-						for id, conn := range communities[communityID].conns {
+						for id, conn := range connections[communityID] {
 							if id == raddr {
 								continue
 							}
