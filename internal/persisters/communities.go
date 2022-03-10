@@ -126,6 +126,10 @@ func (p *CommunitiesPersister) RemoveClientFromCommunity(
 	community, err := models.FindCommunity(ctx, tx, communityID)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			if err := tx.Rollback(); err != nil {
+				return err
+			}
+
 			return nil // No-op
 		}
 

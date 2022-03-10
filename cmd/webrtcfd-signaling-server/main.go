@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -81,145 +82,196 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	srv := &http.Server{Addr: addr.String()}
+
 	var connectionsLock sync.Mutex
 	connections := map[string]map[string]*websocket.Conn{}
 
-	panic(
-		http.ListenAndServe(
-			addr.String(),
-			http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				raddr := base64.StdEncoding.EncodeToString(sha256.New().Sum([]byte(r.RemoteAddr))) // Obfuscate remote address to prevent processing GDPR-sensitive information
+	s := make(chan os.Signal)
+	signal.Notify(s, os.Interrupt)
+	go func() {
+		<-s
 
-				defer func() {
-					if err := recover(); err != nil {
-						log.Println("closed connection for client with address", raddr+":", err)
-					}
-				}()
+		log.Println("Gracefully shutting down signaling server")
 
-				path := strings.Split(r.URL.Path, "/")
-				if len(path) < 1 {
-					panic(errMissingPath)
+		s := make(chan os.Signal)
+		signal.Notify(s, os.Interrupt)
+		go func() {
+			<-s
+
+			log.Println("Forcing shutdown of signaling server")
+
+			cancel()
+
+			if err := srv.Shutdown(ctx); err != nil {
+				if err == context.Canceled {
+					return
 				}
 
-				communityID := path[len(path)-1]
-				if strings.TrimSpace(communityID) == "" {
-					panic(errMissingCommunityID)
-				}
+				panic(err)
+			}
+		}()
 
-				password := r.URL.Query().Get("password")
-				if strings.TrimSpace(password) == "" {
-					panic(errMissingPassword)
-				}
-
-				if err := communities.AddClientsToCommunity(ctx, communityID, password, false); err != nil {
+		connectionsLock.Lock()
+		for communityID := range connections {
+			for range connections[communityID] {
+				if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
 					panic(err)
 				}
+			}
+		}
+		connectionsLock.Unlock()
 
-				defer func() {
-					if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
-						panic(err)
-					}
-				}()
+		cancel()
 
-				conn, err := upgrader.Upgrade(rw, r, nil)
+		if err := srv.Shutdown(ctx); err != nil {
+			if err == context.Canceled {
+				return
+			}
+
+			panic(err)
+		}
+	}()
+
+	srv.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		raddr := base64.StdEncoding.EncodeToString(sha256.New().Sum([]byte(r.RemoteAddr))) // Obfuscate remote address to prevent processing GDPR-sensitive information
+
+		defer func() {
+			if err := recover(); err != nil {
+				log.Println("closed connection for client with address", raddr+":", err)
+			}
+		}()
+
+		path := strings.Split(r.URL.Path, "/")
+		if len(path) < 1 {
+			panic(errMissingPath)
+		}
+
+		communityID := path[len(path)-1]
+		if strings.TrimSpace(communityID) == "" {
+			panic(errMissingCommunityID)
+		}
+
+		password := r.URL.Query().Get("password")
+		if strings.TrimSpace(password) == "" {
+			panic(errMissingPassword)
+		}
+
+		if err := communities.AddClientsToCommunity(ctx, communityID, password, false); err != nil {
+			panic(err)
+		}
+
+		defer func() {
+			if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
+				panic(err)
+			}
+		}()
+
+		conn, err := upgrader.Upgrade(rw, r, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		defer func() {
+			connectionsLock.Lock()
+			delete(connections[communityID], raddr)
+			if len(connections[communityID]) <= 0 {
+				delete(connections, communityID)
+			}
+			connectionsLock.Unlock()
+
+			log.Println("Disconnected from client with address", raddr, "in community", communityID)
+
+			if err := conn.Close(); err != nil {
+				panic(err)
+			}
+		}()
+
+		connectionsLock.Lock()
+		if _, exists := connections[communityID]; !exists {
+			connections[communityID] = map[string]*websocket.Conn{}
+		}
+		connections[communityID][raddr] = conn
+		connectionsLock.Unlock()
+
+		log.Println("Connected to client with address", raddr, "in community", communityID)
+
+		if err := conn.SetReadDeadline(time.Now().Add(*heartbeat)); err != nil {
+			panic(err)
+		}
+		conn.SetPongHandler(func(string) error {
+			return conn.SetReadDeadline(time.Now().Add(*heartbeat))
+		})
+
+		pings := time.NewTicker(*heartbeat / 2)
+		defer pings.Stop()
+
+		inputs := make(chan input)
+		errs := make(chan error)
+		go func() {
+			for {
+				messageType, p, err := conn.ReadMessage()
 				if err != nil {
+					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
+						errs <- err
+					}
+
+					errs <- nil
+
+					return
+				}
+
+				if *verbose {
+					log.Println("Received message with type", messageType, "from client with address", raddr, "in community", communityID)
+				}
+
+				inputs <- input{messageType, p}
+			}
+		}()
+
+		for {
+			select {
+			case err := <-errs:
+				panic(err)
+			case input := <-inputs:
+				for id, conn := range connections[communityID] {
+					if id == raddr {
+						continue
+					}
+
+					if *verbose {
+						log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", communityID)
+					}
+
+					if err := conn.WriteMessage(input.messageType, input.p); err != nil {
+						panic(err)
+					}
+
+					if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
+						panic(err)
+					}
+				}
+			case <-pings.C:
+				if *verbose {
+					log.Println("Sending ping to client with address", raddr, "in community", communityID)
+				}
+
+				if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
 					panic(err)
 				}
 
-				defer func() {
-					connectionsLock.Lock()
-					delete(connections[communityID], raddr)
-					if len(connections[communityID]) <= 0 {
-						delete(connections, communityID)
-					}
-					connectionsLock.Unlock()
-
-					log.Println("Disconnected from client with address", raddr, "in community", communityID)
-
-					if err := conn.Close(); err != nil {
-						panic(err)
-					}
-				}()
-
-				connectionsLock.Lock()
-				if _, exists := connections[communityID]; !exists {
-					connections[communityID] = map[string]*websocket.Conn{}
-				}
-				connections[communityID][raddr] = conn
-				connectionsLock.Unlock()
-
-				log.Println("Connected to client with address", raddr, "in community", communityID)
-
-				if err := conn.SetReadDeadline(time.Now().Add(*heartbeat)); err != nil {
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					panic(err)
 				}
-				conn.SetPongHandler(func(string) error {
-					return conn.SetReadDeadline(time.Now().Add(*heartbeat))
-				})
+			}
+		}
+	})
 
-				pings := time.NewTicker(*heartbeat / 2)
-				defer pings.Stop()
+	if err := srv.ListenAndServe(); err != nil {
+		if err == http.ErrServerClosed {
+			return
+		}
 
-				inputs := make(chan input)
-				errs := make(chan error)
-				go func() {
-					for {
-						messageType, p, err := conn.ReadMessage()
-						if err != nil {
-							if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
-								errs <- err
-							}
-
-							errs <- nil
-
-							return
-						}
-
-						if *verbose {
-							log.Println("Received message with type", messageType, "from client with address", raddr, "in community", communityID)
-						}
-
-						inputs <- input{messageType, p}
-					}
-				}()
-
-				for {
-					select {
-					case err := <-errs:
-						panic(err)
-					case input := <-inputs:
-						for id, conn := range connections[communityID] {
-							if id == raddr {
-								continue
-							}
-
-							if *verbose {
-								log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", communityID)
-							}
-
-							if err := conn.WriteMessage(input.messageType, input.p); err != nil {
-								panic(err)
-							}
-
-							if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
-								panic(err)
-							}
-						}
-					case <-pings.C:
-						if *verbose {
-							log.Println("Sending ping to client with address", raddr, "in community", communityID)
-						}
-
-						if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
-							panic(err)
-						}
-
-						if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-							panic(err)
-						}
-					}
-				}
-			}),
-		),
-	)
+		panic(err)
+	}
 }
