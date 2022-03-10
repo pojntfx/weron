@@ -25,6 +25,7 @@ import (
 type Community struct {
 	ID         string `boil:"id" json:"id" toml:"id" yaml:"id"`
 	Password   string `boil:"password" json:"password" toml:"password" yaml:"password"`
+	Clients    int64  `boil:"clients" json:"clients" toml:"clients" yaml:"clients"`
 	Persistent bool   `boil:"persistent" json:"persistent" toml:"persistent" yaml:"persistent"`
 
 	R *communityR `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -34,20 +35,24 @@ type Community struct {
 var CommunityColumns = struct {
 	ID         string
 	Password   string
+	Clients    string
 	Persistent string
 }{
 	ID:         "id",
 	Password:   "password",
+	Clients:    "clients",
 	Persistent: "persistent",
 }
 
 var CommunityTableColumns = struct {
 	ID         string
 	Password   string
+	Clients    string
 	Persistent string
 }{
 	ID:         "communities.id",
 	Password:   "communities.password",
+	Clients:    "communities.clients",
 	Persistent: "communities.persistent",
 }
 
@@ -76,6 +81,29 @@ func (w whereHelperstring) NIN(slice []string) qm.QueryMod {
 	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
 }
 
+type whereHelperint64 struct{ field string }
+
+func (w whereHelperint64) EQ(x int64) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.EQ, x) }
+func (w whereHelperint64) NEQ(x int64) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.NEQ, x) }
+func (w whereHelperint64) LT(x int64) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.LT, x) }
+func (w whereHelperint64) LTE(x int64) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.LTE, x) }
+func (w whereHelperint64) GT(x int64) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.GT, x) }
+func (w whereHelperint64) GTE(x int64) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.GTE, x) }
+func (w whereHelperint64) IN(slice []int64) qm.QueryMod {
+	values := make([]interface{}, 0, len(slice))
+	for _, value := range slice {
+		values = append(values, value)
+	}
+	return qm.WhereIn(fmt.Sprintf("%s IN ?", w.field), values...)
+}
+func (w whereHelperint64) NIN(slice []int64) qm.QueryMod {
+	values := make([]interface{}, 0, len(slice))
+	for _, value := range slice {
+		values = append(values, value)
+	}
+	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
+}
+
 type whereHelperbool struct{ field string }
 
 func (w whereHelperbool) EQ(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.EQ, x) }
@@ -88,10 +116,12 @@ func (w whereHelperbool) GTE(x bool) qm.QueryMod { return qmhelper.Where(w.field
 var CommunityWhere = struct {
 	ID         whereHelperstring
 	Password   whereHelperstring
+	Clients    whereHelperint64
 	Persistent whereHelperbool
 }{
 	ID:         whereHelperstring{field: "\"communities\".\"id\""},
 	Password:   whereHelperstring{field: "\"communities\".\"password\""},
+	Clients:    whereHelperint64{field: "\"communities\".\"clients\""},
 	Persistent: whereHelperbool{field: "\"communities\".\"persistent\""},
 }
 
@@ -112,8 +142,8 @@ func (*communityR) NewStruct() *communityR {
 type communityL struct{}
 
 var (
-	communityAllColumns            = []string{"id", "password", "persistent"}
-	communityColumnsWithoutDefault = []string{"id", "password", "persistent"}
+	communityAllColumns            = []string{"id", "password", "clients", "persistent"}
+	communityColumnsWithoutDefault = []string{"id", "password", "clients", "persistent"}
 	communityColumnsWithDefault    = []string{}
 	communityPrimaryKeyColumns     = []string{"id"}
 	communityGeneratedColumns      = []string{}
