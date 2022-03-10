@@ -9,6 +9,7 @@ import (
 	models "github.com/pojntfx/webrtcfd/internal/db/sqlite/models/communities"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
+	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -158,6 +159,35 @@ func (p *CommunitiesPersister) RemoveClientFromCommunity(
 	}
 
 	if _, err := community.Update(ctx, tx, boil.Infer()); err != nil {
+		if err := tx.Rollback(); err != nil {
+			return err
+		}
+
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (p *CommunitiesPersister) Cleanup(
+	ctx context.Context,
+) error {
+	tx, err := p.sqlite.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	// Delete all ephermal communities
+	if _, err := models.Communities(qm.Where(models.CommunityColumns.Persistent+"= ?", false)).DeleteAll(ctx, tx); err != nil {
+		if err := tx.Rollback(); err != nil {
+			return err
+		}
+
+		return err
+	}
+
+	// Set client count to 0 for all persistent communities
+	if _, err := models.Communities(qm.Where(models.CommunityColumns.Persistent+"= ?", true)).UpdateAll(ctx, tx, models.M{models.CommunityColumns.Clients: 0}); err != nil {
 		if err := tx.Rollback(); err != nil {
 			return err
 		}
