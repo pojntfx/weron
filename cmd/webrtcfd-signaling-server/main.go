@@ -45,12 +45,28 @@ func main() {
 	laddr := flag.String("laddr", ":1337", "Listening address")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
 	dbPath := flag.String("db", communitiesPath, "Database to use")
+	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
 
 	if *verbose {
 		boil.DebugMode = true
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	communities := persisters.NewCommunitiesPersister(*dbPath)
+
+	if err := communities.Open(); err != nil {
+		panic(err)
+	}
+
+	if *cleanup {
+		if err := communities.Cleanup(ctx); err != nil {
+			panic(err)
+		}
 	}
 
 	addr, err := net.ResolveTCPAddr("tcp", *laddr)
@@ -70,17 +86,6 @@ func main() {
 
 		addr.Port = p
 	}
-
-	log.Println("Listening on address", addr.String())
-
-	communities := persisters.NewCommunitiesPersister(*dbPath)
-
-	if err := communities.Open(); err != nil {
-		panic(err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	srv := &http.Server{Addr: addr.String()}
 
@@ -266,6 +271,8 @@ func main() {
 			}
 		}
 	})
+
+	log.Println("Listening on address", addr.String())
 
 	if err := srv.ListenAndServe(); err != nil {
 		if err == http.ErrServerClosed {
