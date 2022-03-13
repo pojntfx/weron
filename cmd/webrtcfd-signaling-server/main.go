@@ -158,7 +158,19 @@ func main() {
 		raddr := base64.StdEncoding.EncodeToString(sha256.New().Sum([]byte(r.RemoteAddr))) // Obfuscate remote address to prevent processing GDPR-sensitive information
 
 		defer func() {
-			log.Println("closed connection for client with address", raddr+":", recover())
+			err := recover()
+			switch err {
+			case nil:
+				log.Println("closed connection for client with address", raddr)
+			case http.StatusUnauthorized:
+				fallthrough
+			case http.StatusNotImplemented:
+				log.Println("closed connection for client with address", raddr+":", err)
+			default:
+				rw.WriteHeader(http.StatusInternalServerError)
+
+				log.Println("closed connection for client with address", raddr+":", err)
+			}
 		}()
 
 		switch r.Method {
@@ -201,7 +213,7 @@ func main() {
 				panic(errMissingCommunityID)
 			}
 
-			if err := communities.AddClientsToCommunity(ctx, communityID, communityPassword, false); err != nil {
+			if err := communities.AddClientsToCommunity(ctx, communityID, communityPassword); err != nil {
 				panic(err)
 			}
 
@@ -309,6 +321,50 @@ func main() {
 					}
 				}
 			}
+		case http.MethodPost:
+			// Create persistent community
+			_, p, ok := r.BasicAuth()
+			if !ok || p != *password {
+				rw.WriteHeader(http.StatusUnauthorized)
+
+				panic(http.StatusUnauthorized)
+			}
+
+			communityPassword := r.URL.Query().Get("password")
+			if strings.TrimSpace(communityPassword) == "" {
+				panic(errMissingPassword)
+			}
+
+			path := strings.Split(r.URL.Path, "/")
+			if len(path) < 1 {
+				panic(errMissingPath)
+			}
+
+			communityID := path[len(path)-1]
+			if strings.TrimSpace(communityID) == "" {
+				panic(errMissingCommunityID)
+			}
+
+			community, err := communities.CreatePersistentCommunity(ctx, communityID, communityPassword)
+			if err != nil {
+				panic(err)
+			}
+
+			pc := persisters.PersistentCommunity{
+				ID:      community.ID,
+				Clients: community.Clients,
+			}
+
+			j, err := json.Marshal(pc)
+			if err != nil {
+				panic(err)
+			}
+
+			if _, err := fmt.Fprint(rw, string(j)); err != nil {
+				panic(err)
+			}
+
+			return
 		default:
 			rw.WriteHeader(http.StatusNotImplemented)
 

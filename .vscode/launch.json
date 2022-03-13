@@ -13,6 +13,8 @@
         "test",
         "-password",
         "test",
+        "-key",
+        "test",
         "-raddr",
         "ws://localhost:1337",
         "-verbose"
@@ -25,7 +27,7 @@
       "console": "integratedTerminal",
       "mode": "auto",
       "program": "cmd/webrtcfd-signaling-server/main.go",
-      "args": ["-verbose"]
+      "args": ["-verbose", "-cleanup", "-password", "asdf"]
     }
   ]
 }
