@@ -55,7 +55,6 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 	ctx context.Context,
 	communityID string,
 	password string,
-	persistent bool,
 ) error {
 	tx, err := p.sqlite.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -78,7 +77,7 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 				ID:         communityID,
 				Password:   string(hashedPassword),
 				Clients:    1,
-				Persistent: persistent,
+				Persistent: false,
 			}
 
 			if err := community.Insert(ctx, tx, boil.Infer()); err != nil {
@@ -213,8 +212,35 @@ func (p *CommunitiesPersister) GetPersistentCommunities(
 
 	pc := []PersistentCommunity{}
 	for _, community := range c {
-		pc = append(pc, PersistentCommunity{community.ID, community.Clients})
+		pc = append(pc, PersistentCommunity{
+			ID:      community.ID,
+			Clients: community.Clients,
+		})
 	}
 
 	return pc, nil
+}
+
+func (p *CommunitiesPersister) CreatePersistentCommunity(
+	ctx context.Context,
+	communityID string,
+	password string,
+) (*models.Community, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	community := &models.Community{
+		ID:         communityID,
+		Password:   string(hashedPassword),
+		Clients:    0,
+		Persistent: true,
+	}
+
+	if err := community.Insert(ctx, p.sqlite.DB, boil.Infer()); err != nil {
+		return nil, err
+	}
+
+	return community, nil
 }
