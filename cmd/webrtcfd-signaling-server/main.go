@@ -37,11 +37,6 @@ type input struct {
 	p           []byte
 }
 
-type persistentCommunity struct {
-	ID      string `json:"id"`
-	Clients int64  `json:"clients"`
-}
-
 func main() {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -172,17 +167,14 @@ func main() {
 				// List persistent communities
 				_, p, ok := r.BasicAuth()
 				if !ok || p != *password {
+					rw.WriteHeader(http.StatusUnauthorized)
+
 					panic(http.StatusUnauthorized)
 				}
 
-				c, err := communities.GetPersistentCommunities(ctx)
+				pc, err := communities.GetPersistentCommunities(ctx)
 				if err != nil {
 					panic(err)
-				}
-
-				pc := []persistentCommunity{}
-				for _, community := range c {
-					pc = append(pc, persistentCommunity{community.ID, community.Clients})
 				}
 
 				j, err := json.Marshal(pc)
@@ -317,6 +309,8 @@ func main() {
 				}
 			}
 		default:
+			rw.WriteHeader(http.StatusNotImplemented)
+
 			panic(http.StatusNotImplemented)
 		}
 	})
