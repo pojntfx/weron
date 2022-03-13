@@ -244,3 +244,17 @@ func (p *CommunitiesPersister) CreatePersistentCommunity(
 
 	return community, nil
 }
+
+func (p *CommunitiesPersister) DeletePersistentCommunity(
+	ctx context.Context,
+	communityID string,
+) error {
+	if _, err := models.Communities(
+		qm.Where(models.CommunityColumns.ID+"= ?", communityID),
+		qm.Where(models.CommunityColumns.Persistent+"= ?", true),
+	).DeleteAll(ctx, p.sqlite.DB); err != nil {
+		return err
+	}
+
+	return nil
+}

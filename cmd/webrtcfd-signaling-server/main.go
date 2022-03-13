@@ -365,6 +365,30 @@ func main() {
 			}
 
 			return
+		case http.MethodDelete:
+			// Delete persistent community
+			_, p, ok := r.BasicAuth()
+			if !ok || p != *password {
+				rw.WriteHeader(http.StatusUnauthorized)
+
+				panic(http.StatusUnauthorized)
+			}
+
+			path := strings.Split(r.URL.Path, "/")
+			if len(path) < 1 {
+				panic(errMissingPath)
+			}
+
+			communityID := path[len(path)-1]
+			if strings.TrimSpace(communityID) == "" {
+				panic(errMissingCommunityID)
+			}
+
+			if err := communities.DeletePersistentCommunity(ctx, communityID); err != nil {
+				panic(err)
+			}
+
+			return
 		default:
 			rw.WriteHeader(http.StatusNotImplemented)
 
