@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -108,14 +109,14 @@ func main() {
 	connections := map[string]map[string]*websocket.Conn{}
 
 	s := make(chan os.Signal)
-	signal.Notify(s, os.Interrupt)
+	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-s
 
 		log.Println("Gracefully shutting down signaling server")
 
 		s := make(chan os.Signal)
-		signal.Notify(s, os.Interrupt)
+		signal.Notify(s, os.Interrupt, syscall.SIGTERM)
 		go func() {
 			<-s
 
