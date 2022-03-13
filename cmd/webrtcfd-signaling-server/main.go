@@ -39,6 +39,11 @@ type input struct {
 	p           []byte
 }
 
+type connection struct {
+	conn   *websocket.Conn
+	closer chan struct{}
+}
+
 func main() {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -107,7 +112,7 @@ func main() {
 	srv := &http.Server{Addr: addr.String()}
 
 	var connectionsLock sync.Mutex
-	connections := map[string]map[string]*websocket.Conn{}
+	connections := map[string]map[string]connection{}
 
 	s := make(chan os.Signal)
 	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
@@ -248,9 +253,12 @@ func main() {
 
 			connectionsLock.Lock()
 			if _, exists := connections[communityID]; !exists {
-				connections[communityID] = map[string]*websocket.Conn{}
+				connections[communityID] = map[string]connection{}
 			}
-			connections[communityID][raddr] = conn
+			connections[communityID][raddr] = connection{
+				conn:   conn,
+				closer: make(chan struct{}),
+			}
 			connectionsLock.Unlock()
 
 			log.Println("Connected to client with address", raddr, "in community", communityID)
@@ -290,6 +298,8 @@ func main() {
 
 			for {
 				select {
+				case <-connections[communityID][raddr].closer:
+					return
 				case err := <-errs:
 					panic(err)
 				case input := <-inputs:
@@ -302,11 +312,11 @@ func main() {
 							log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", communityID)
 						}
 
-						if err := conn.WriteMessage(input.messageType, input.p); err != nil {
+						if err := conn.conn.WriteMessage(input.messageType, input.p); err != nil {
 							panic(err)
 						}
 
-						if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
+						if err := conn.conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
 							panic(err)
 						}
 					}
@@ -395,6 +405,10 @@ func main() {
 				} else {
 					panic(err)
 				}
+			}
+
+			for _, conn := range connections[communityID] {
+				close(conn.closer)
 			}
 
 			return
