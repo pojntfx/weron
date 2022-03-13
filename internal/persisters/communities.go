@@ -20,6 +20,11 @@ var (
 	ErrWrongPassword = errors.New("wrong password")
 )
 
+type PersistentCommunity struct {
+	ID      string `json:"id"`
+	Clients int64  `json:"clients"`
+}
+
 type CommunitiesPersister struct {
 	sqlite *SQLite
 
@@ -200,6 +205,16 @@ func (p *CommunitiesPersister) Cleanup(
 
 func (p *CommunitiesPersister) GetPersistentCommunities(
 	ctx context.Context,
-) (models.CommunitySlice, error) {
-	return models.Communities(qm.Where(models.CommunityColumns.Persistent+"= ?", true)).All(ctx, p.sqlite.DB)
+) ([]PersistentCommunity, error) {
+	c, err := models.Communities(qm.Where(models.CommunityColumns.Persistent+"= ?", true)).All(ctx, p.sqlite.DB)
+	if err != nil {
+		return nil, err
+	}
+
+	pc := []PersistentCommunity{}
+	for _, community := range c {
+		pc = append(pc, PersistentCommunity{community.ID, community.Clients})
+	}
+
+	return pc, nil
 }
