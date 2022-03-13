@@ -197,3 +197,9 @@ func (p *CommunitiesPersister) Cleanup(
 
 	return tx.Commit()
 }
+
+func (p *CommunitiesPersister) GetPersistentCommunities(
+	ctx context.Context,
+) (models.CommunitySlice, error) {
+	return models.Communities(qm.Where(models.CommunityColumns.Persistent+"= ?", true)).All(ctx, p.sqlite.DB)
+}
