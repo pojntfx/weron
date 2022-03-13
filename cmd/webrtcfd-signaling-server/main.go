@@ -27,6 +27,7 @@ import (
 var (
 	errMissingPath        = errors.New("missing path")
 	errMissingCommunityID = errors.New("missing community ID")
+	errMissingPassword    = errors.New("missing password")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -48,12 +49,11 @@ func main() {
 	}
 	communitiesPath := filepath.Join(home, ".local", "share", "webrtcfd", "var", "lib", "webrtcfd", "communities.sqlite")
 
-	laddr := flag.String("laddr", ":1337", "Listening address")
+	laddr := flag.String("laddr", ":1337", "Listening address (can also be set using the PORT env variable)")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
 	dbPath := flag.String("db", communitiesPath, "Database to use")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
-	// username := flag.String("username", "", "Username for the management API")
-	// password := flag.String("password", "", "Password for the management API")
+	password := flag.String("password", "", "Password for the management API (can also be set using the PASSWORD env variable)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -93,6 +93,18 @@ func main() {
 		}
 
 		addr.Port = p
+	}
+
+	if p := os.Getenv("PASSWORD"); p != "" {
+		if *verbose {
+			log.Println("Using password from PASSWORD env variable")
+		}
+
+		*password = p
+	}
+
+	if strings.TrimSpace(*password) == "" {
+		panic(errMissingPassword)
 	}
 
 	srv := &http.Server{Addr: addr.String()}
@@ -155,9 +167,14 @@ func main() {
 
 		switch r.Method {
 		case http.MethodGet:
-			password := r.URL.Query().Get("password")
-			if strings.TrimSpace(password) == "" {
+			communityPassword := r.URL.Query().Get("password")
+			if strings.TrimSpace(communityPassword) == "" {
 				// List persistent communities
+				_, p, ok := r.BasicAuth()
+				if !ok || p != *password {
+					panic(http.StatusUnauthorized)
+				}
+
 				c, err := communities.GetPersistentCommunities(ctx)
 				if err != nil {
 					panic(err)
@@ -191,7 +208,7 @@ func main() {
 				panic(errMissingCommunityID)
 			}
 
-			if err := communities.AddClientsToCommunity(ctx, communityID, password, false); err != nil {
+			if err := communities.AddClientsToCommunity(ctx, communityID, communityPassword, false); err != nil {
 				panic(err)
 			}
 
