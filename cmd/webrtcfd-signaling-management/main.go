@@ -171,6 +171,35 @@ Flags:
 		if err := w.Write([]string{pc.ID, fmt.Sprintf("%v", pc.Clients)}); err != nil {
 			panic(err)
 		}
+	case "delete":
+		if strings.TrimSpace(*communityID) == "" {
+			panic(errMissingCommunityID)
+		}
+
+		c := &http.Client{}
+
+		u, err := url.Parse(*raddr)
+		if err != nil {
+			panic(err)
+		}
+		u.Path = path.Join(u.Path, *communityID)
+
+		req, err := http.NewRequest(http.MethodDelete, u.String(), http.NoBody)
+		if err != nil {
+			panic(err)
+		}
+		req.SetBasicAuth(user, *password)
+
+		res, err := c.Do(req)
+		if err != nil {
+			panic(err)
+		}
+		if res.Body != nil {
+			defer res.Body.Close()
+		}
+		if res.StatusCode != http.StatusOK {
+			panic(res.Status)
+		}
 	default:
 		panic("unknown command")
 	}

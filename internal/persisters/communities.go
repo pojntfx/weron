@@ -249,11 +249,16 @@ func (p *CommunitiesPersister) DeletePersistentCommunity(
 	ctx context.Context,
 	communityID string,
 ) error {
-	if _, err := models.Communities(
+	n, err := models.Communities(
 		qm.Where(models.CommunityColumns.ID+"= ?", communityID),
 		qm.Where(models.CommunityColumns.Persistent+"= ?", true),
-	).DeleteAll(ctx, p.sqlite.DB); err != nil {
+	).DeleteAll(ctx, p.sqlite.DB)
+	if err != nil {
 		return err
+	}
+
+	if n <= 0 {
+		return sql.ErrNoRows
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -165,6 +166,8 @@ func main() {
 			case http.StatusUnauthorized:
 				fallthrough
 			case http.StatusNotImplemented:
+				log.Println("closed connection for client with address", raddr+":", err)
+			case http.StatusNotFound:
 				log.Println("closed connection for client with address", raddr+":", err)
 			default:
 				rw.WriteHeader(http.StatusInternalServerError)
@@ -385,7 +388,13 @@ func main() {
 			}
 
 			if err := communities.DeletePersistentCommunity(ctx, communityID); err != nil {
-				panic(err)
+				if err == sql.ErrNoRows {
+					rw.WriteHeader(http.StatusNotFound)
+
+					panic(http.StatusNotFound)
+				} else {
+					panic(err)
+				}
 			}
 
 			return
