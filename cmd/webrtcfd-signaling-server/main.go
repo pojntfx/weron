@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -25,7 +27,6 @@ import (
 var (
 	errMissingPath        = errors.New("missing path")
 	errMissingCommunityID = errors.New("missing community ID")
-	errMissingPassword    = errors.New("missing password")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -33,6 +34,11 @@ var (
 type input struct {
 	messageType int
 	p           []byte
+}
+
+type persistentCommunity struct {
+	ID      string `json:"id"`
+	Clients int64  `json:"clients"`
 }
 
 func main() {
@@ -46,6 +52,8 @@ func main() {
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
 	dbPath := flag.String("db", communitiesPath, "Database to use")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
+	// username := flag.String("username", "", "Username for the management API")
+	// password := flag.String("password", "", "Password for the management API")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -142,133 +150,157 @@ func main() {
 		raddr := base64.StdEncoding.EncodeToString(sha256.New().Sum([]byte(r.RemoteAddr))) // Obfuscate remote address to prevent processing GDPR-sensitive information
 
 		defer func() {
-			if err := recover(); err != nil {
-				log.Println("closed connection for client with address", raddr+":", err)
-			}
+			log.Println("closed connection for client with address", raddr+":", recover())
 		}()
 
-		path := strings.Split(r.URL.Path, "/")
-		if len(path) < 1 {
-			panic(errMissingPath)
-		}
+		switch r.Method {
+		case http.MethodGet:
+			password := r.URL.Query().Get("password")
+			if strings.TrimSpace(password) == "" {
+				// List persistent communities
+				c, err := communities.GetPersistentCommunities(ctx)
+				if err != nil {
+					panic(err)
+				}
 
-		communityID := path[len(path)-1]
-		if strings.TrimSpace(communityID) == "" {
-			panic(errMissingCommunityID)
-		}
+				pc := []persistentCommunity{}
+				for _, community := range c {
+					pc = append(pc, persistentCommunity{community.ID, community.Clients})
+				}
 
-		password := r.URL.Query().Get("password")
-		if strings.TrimSpace(password) == "" {
-			panic(errMissingPassword)
-		}
+				j, err := json.Marshal(pc)
+				if err != nil {
+					panic(err)
+				}
 
-		if err := communities.AddClientsToCommunity(ctx, communityID, password, false); err != nil {
-			panic(err)
-		}
+				if _, err := fmt.Fprint(rw, string(j)); err != nil {
+					panic(err)
+				}
 
-		defer func() {
-			if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
+				return
+			}
+
+			path := strings.Split(r.URL.Path, "/")
+			if len(path) < 1 {
+				panic(errMissingPath)
+			}
+
+			// Create ephermal community
+			communityID := path[len(path)-1]
+			if strings.TrimSpace(communityID) == "" {
+				panic(errMissingCommunityID)
+			}
+
+			if err := communities.AddClientsToCommunity(ctx, communityID, password, false); err != nil {
 				panic(err)
 			}
-		}()
 
-		conn, err := upgrader.Upgrade(rw, r, nil)
-		if err != nil {
-			panic(err)
-		}
+			defer func() {
+				if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
+					panic(err)
+				}
+			}()
 
-		defer func() {
-			connectionsLock.Lock()
-			delete(connections[communityID], raddr)
-			if len(connections[communityID]) <= 0 {
-				delete(connections, communityID)
+			conn, err := upgrader.Upgrade(rw, r, nil)
+			if err != nil {
+				panic(err)
 			}
+
+			defer func() {
+				connectionsLock.Lock()
+				delete(connections[communityID], raddr)
+				if len(connections[communityID]) <= 0 {
+					delete(connections, communityID)
+				}
+				connectionsLock.Unlock()
+
+				log.Println("Disconnected from client with address", raddr, "in community", communityID)
+
+				if err := conn.Close(); err != nil {
+					panic(err)
+				}
+			}()
+
+			connectionsLock.Lock()
+			if _, exists := connections[communityID]; !exists {
+				connections[communityID] = map[string]*websocket.Conn{}
+			}
+			connections[communityID][raddr] = conn
 			connectionsLock.Unlock()
 
-			log.Println("Disconnected from client with address", raddr, "in community", communityID)
+			log.Println("Connected to client with address", raddr, "in community", communityID)
 
-			if err := conn.Close(); err != nil {
+			if err := conn.SetReadDeadline(time.Now().Add(*heartbeat)); err != nil {
 				panic(err)
 			}
-		}()
+			conn.SetPongHandler(func(string) error {
+				return conn.SetReadDeadline(time.Now().Add(*heartbeat))
+			})
 
-		connectionsLock.Lock()
-		if _, exists := connections[communityID]; !exists {
-			connections[communityID] = map[string]*websocket.Conn{}
-		}
-		connections[communityID][raddr] = conn
-		connectionsLock.Unlock()
+			pings := time.NewTicker(*heartbeat / 2)
+			defer pings.Stop()
 
-		log.Println("Connected to client with address", raddr, "in community", communityID)
+			inputs := make(chan input)
+			errs := make(chan error)
+			go func() {
+				for {
+					messageType, p, err := conn.ReadMessage()
+					if err != nil {
+						if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
+							errs <- err
+						}
 
-		if err := conn.SetReadDeadline(time.Now().Add(*heartbeat)); err != nil {
-			panic(err)
-		}
-		conn.SetPongHandler(func(string) error {
-			return conn.SetReadDeadline(time.Now().Add(*heartbeat))
-		})
+						errs <- nil
 
-		pings := time.NewTicker(*heartbeat / 2)
-		defer pings.Stop()
-
-		inputs := make(chan input)
-		errs := make(chan error)
-		go func() {
-			for {
-				messageType, p, err := conn.ReadMessage()
-				if err != nil {
-					if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
-						errs <- err
-					}
-
-					errs <- nil
-
-					return
-				}
-
-				if *verbose {
-					log.Println("Received message with type", messageType, "from client with address", raddr, "in community", communityID)
-				}
-
-				inputs <- input{messageType, p}
-			}
-		}()
-
-		for {
-			select {
-			case err := <-errs:
-				panic(err)
-			case input := <-inputs:
-				for id, conn := range connections[communityID] {
-					if id == raddr {
-						continue
+						return
 					}
 
 					if *verbose {
-						log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", communityID)
+						log.Println("Received message with type", messageType, "from client with address", raddr, "in community", communityID)
 					}
 
-					if err := conn.WriteMessage(input.messageType, input.p); err != nil {
-						panic(err)
+					inputs <- input{messageType, p}
+				}
+			}()
+
+			for {
+				select {
+				case err := <-errs:
+					panic(err)
+				case input := <-inputs:
+					for id, conn := range connections[communityID] {
+						if id == raddr {
+							continue
+						}
+
+						if *verbose {
+							log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", communityID)
+						}
+
+						if err := conn.WriteMessage(input.messageType, input.p); err != nil {
+							panic(err)
+						}
+
+						if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
+							panic(err)
+						}
+					}
+				case <-pings.C:
+					if *verbose {
+						log.Println("Sending ping to client with address", raddr, "in community", communityID)
 					}
 
 					if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
 						panic(err)
 					}
-				}
-			case <-pings.C:
-				if *verbose {
-					log.Println("Sending ping to client with address", raddr, "in community", communityID)
-				}
 
-				if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
-					panic(err)
-				}
-
-				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-					panic(err)
+					if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+						panic(err)
+					}
 				}
 			}
+		default:
+			panic(http.StatusNotImplemented)
 		}
 	})
 
