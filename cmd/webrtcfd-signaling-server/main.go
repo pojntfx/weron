@@ -56,6 +56,7 @@ func main() {
 	dbPath := flag.String("db", communitiesPath, "Database to use")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
+	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -216,8 +217,8 @@ func main() {
 				panic(errMissingPassword)
 			}
 
-			if err := communities.AddClientsToCommunity(ctx, community, password); err != nil {
-				if err == persisters.ErrWrongPassword {
+			if err := communities.AddClientsToCommunity(ctx, community, password, *ephermalCommunities); err != nil {
+				if err == persisters.ErrWrongPassword || err == persisters.ErrEphermalCommunitiesDisabled {
 					rw.WriteHeader(http.StatusUnauthorized)
 
 					panic(http.StatusUnauthorized)
