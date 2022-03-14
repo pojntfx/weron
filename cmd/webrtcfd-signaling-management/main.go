@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"strings"
 
 	"github.com/pojntfx/webrtcfd/internal/persisters"
@@ -22,16 +21,16 @@ const (
 )
 
 var (
-	errMissingPassword          = errors.New("missing password")
-	errMissingCommunityID       = errors.New("missing community ID")
-	errMissingCommunityPassword = errors.New("missing community password")
+	errMissingCommunity   = errors.New("missing community")
+	errMissingPassword    = errors.New("missing password")
+	errMissingAPIPassword = errors.New("missing API password")
 )
 
 func main() {
 	raddr := flag.String("raddr", "https://webrtcfd.herokuapp.com/", "Remote address")
-	password := flag.String("password", "", "Password for the management API (can also be set using the PASSWORD env variable)")
-	communityID := flag.String("community-id", "", "ID of the community to create")
-	communityPassword := flag.String("community-password", "", "Password for the community to create")
+	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
+	community := flag.String("community", "", "ID of community to create")
+	password := flag.String("password", "", "Password for community")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Usage = func() {
@@ -53,16 +52,16 @@ Flags:
 
 	flag.Parse()
 
-	if p := os.Getenv("PASSWORD"); p != "" {
+	if p := os.Getenv("API_PASSWORD"); p != "" {
 		if *verbose {
-			log.Println("Using password from PASSWORD env variable")
+			log.Println("Using password from API_PASSWORD env variable")
 		}
 
-		*password = p
+		*apiPassword = p
 	}
 
-	if strings.TrimSpace(*password) == "" {
-		panic(errMissingPassword)
+	if strings.TrimSpace(*apiPassword) == "" {
+		panic(errMissingAPIPassword)
 	}
 
 	if flag.NArg() <= 0 {
@@ -73,15 +72,15 @@ Flags:
 
 	switch flag.Args()[0] {
 	case "list":
-		c := &http.Client{}
+		hc := &http.Client{}
 
 		req, err := http.NewRequest(http.MethodGet, *raddr, http.NoBody)
 		if err != nil {
 			panic(err)
 		}
-		req.SetBasicAuth(user, *password)
+		req.SetBasicAuth(user, *apiPassword)
 
-		res, err := c.Do(req)
+		res, err := hc.Do(req)
 		if err != nil {
 			panic(err)
 		}
@@ -97,8 +96,8 @@ Flags:
 			panic(err)
 		}
 
-		pc := []persisters.Community{}
-		if err := json.Unmarshal(body, &pc); err != nil {
+		c := []persisters.Community{}
+		if err := json.Unmarshal(body, &c); err != nil {
 			panic(err)
 		}
 
@@ -109,39 +108,39 @@ Flags:
 			panic(err)
 		}
 
-		for _, community := range pc {
+		for _, community := range c {
 			if err := w.Write([]string{community.ID, fmt.Sprintf("%v", community.Clients), fmt.Sprintf("%v", community.Persistent)}); err != nil {
 				panic(err)
 			}
 		}
 	case "create":
-		if strings.TrimSpace(*communityID) == "" {
-			panic(errMissingCommunityID)
+		if strings.TrimSpace(*community) == "" {
+			panic(errMissingCommunity)
 		}
 
-		if strings.TrimSpace(*communityPassword) == "" {
-			panic(errMissingCommunityPassword)
+		if strings.TrimSpace(*password) == "" {
+			panic(errMissingPassword)
 		}
 
-		c := &http.Client{}
+		hc := &http.Client{}
 
 		u, err := url.Parse(*raddr)
 		if err != nil {
 			panic(err)
 		}
-		u.Path = path.Join(u.Path, *communityID)
 
 		q := u.Query()
-		q.Set("password", *communityPassword)
+		q.Set("community", *community)
+		q.Set("password", *password)
 		u.RawQuery = q.Encode()
 
 		req, err := http.NewRequest(http.MethodPost, u.String(), http.NoBody)
 		if err != nil {
 			panic(err)
 		}
-		req.SetBasicAuth(user, *password)
+		req.SetBasicAuth(user, *apiPassword)
 
-		res, err := c.Do(req)
+		res, err := hc.Do(req)
 		if err != nil {
 			panic(err)
 		}
@@ -157,8 +156,8 @@ Flags:
 			panic(err)
 		}
 
-		pc := persisters.Community{}
-		if err := json.Unmarshal(body, &pc); err != nil {
+		c := persisters.Community{}
+		if err := json.Unmarshal(body, &c); err != nil {
 			panic(err)
 		}
 
@@ -169,29 +168,32 @@ Flags:
 			panic(err)
 		}
 
-		if err := w.Write([]string{pc.ID, fmt.Sprintf("%v", pc.Clients), fmt.Sprintf("%v", pc.Persistent)}); err != nil {
+		if err := w.Write([]string{c.ID, fmt.Sprintf("%v", c.Clients), fmt.Sprintf("%v", c.Persistent)}); err != nil {
 			panic(err)
 		}
 	case "delete":
-		if strings.TrimSpace(*communityID) == "" {
-			panic(errMissingCommunityID)
+		if strings.TrimSpace(*community) == "" {
+			panic(errMissingCommunity)
 		}
 
-		c := &http.Client{}
+		hc := &http.Client{}
 
 		u, err := url.Parse(*raddr)
 		if err != nil {
 			panic(err)
 		}
-		u.Path = path.Join(u.Path, *communityID)
+
+		q := u.Query()
+		q.Set("community", *community)
+		u.RawQuery = q.Encode()
 
 		req, err := http.NewRequest(http.MethodDelete, u.String(), http.NoBody)
 		if err != nil {
 			panic(err)
 		}
-		req.SetBasicAuth(user, *password)
+		req.SetBasicAuth(user, *apiPassword)
 
-		res, err := c.Do(req)
+		res, err := hc.Do(req)
 		if err != nil {
 			panic(err)
 		}

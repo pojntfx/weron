@@ -27,9 +27,9 @@ import (
 )
 
 var (
-	errMissingPath        = errors.New("missing path")
-	errMissingCommunityID = errors.New("missing community ID")
+	errMissingCommunity   = errors.New("missing community")
 	errMissingPassword    = errors.New("missing password")
+	errMissingAPIPassword = errors.New("missing API password")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -55,7 +55,7 @@ func main() {
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
 	dbPath := flag.String("db", communitiesPath, "Database to use")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
-	password := flag.String("password", "", "Password for the management API (can also be set using the PASSWORD env variable)")
+	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -97,16 +97,16 @@ func main() {
 		addr.Port = p
 	}
 
-	if p := os.Getenv("PASSWORD"); p != "" {
+	if p := os.Getenv("API_PASSWORD"); p != "" {
 		if *verbose {
-			log.Println("Using password from PASSWORD env variable")
+			log.Println("Using password from API_PASSWORD env variable")
 		}
 
-		*password = p
+		*apiPassword = p
 	}
 
-	if strings.TrimSpace(*password) == "" {
-		panic(errMissingPassword)
+	if strings.TrimSpace(*apiPassword) == "" {
+		panic(errMissingAPIPassword)
 	}
 
 	srv := &http.Server{Addr: addr.String()}
@@ -140,9 +140,9 @@ func main() {
 		}()
 
 		connectionsLock.Lock()
-		for communityID := range connections {
-			for range connections[communityID] {
-				if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
+		for c := range connections {
+			for range connections[c] {
+				if err := communities.RemoveClientFromCommunity(ctx, c); err != nil {
 					panic(err)
 				}
 			}
@@ -183,11 +183,11 @@ func main() {
 
 		switch r.Method {
 		case http.MethodGet:
-			communityPassword := r.URL.Query().Get("password")
-			if strings.TrimSpace(communityPassword) == "" {
-				// List persistent communities
+			community := r.URL.Query().Get("community")
+			if strings.TrimSpace(community) == "" {
+				// List communities
 				_, p, ok := r.BasicAuth()
-				if !ok || p != *password {
+				if !ok || p != *apiPassword {
 					rw.WriteHeader(http.StatusUnauthorized)
 
 					panic(http.StatusUnauthorized)
@@ -210,23 +210,24 @@ func main() {
 				return
 			}
 
-			path := strings.Split(r.URL.Path, "/")
-			if len(path) < 1 {
-				panic(errMissingPath)
-			}
-
 			// Create ephermal community
-			communityID := path[len(path)-1]
-			if strings.TrimSpace(communityID) == "" {
-				panic(errMissingCommunityID)
+			password := r.URL.Query().Get("password")
+			if strings.TrimSpace(password) == "" {
+				panic(errMissingPassword)
 			}
 
-			if err := communities.AddClientsToCommunity(ctx, communityID, communityPassword); err != nil {
-				panic(err)
+			if err := communities.AddClientsToCommunity(ctx, community, password); err != nil {
+				if err == persisters.ErrWrongPassword {
+					rw.WriteHeader(http.StatusUnauthorized)
+
+					panic(http.StatusUnauthorized)
+				} else {
+					panic(err)
+				}
 			}
 
 			defer func() {
-				if err := communities.RemoveClientFromCommunity(ctx, communityID); err != nil {
+				if err := communities.RemoveClientFromCommunity(ctx, community); err != nil {
 					panic(err)
 				}
 			}()
@@ -238,13 +239,13 @@ func main() {
 
 			defer func() {
 				connectionsLock.Lock()
-				delete(connections[communityID], raddr)
-				if len(connections[communityID]) <= 0 {
-					delete(connections, communityID)
+				delete(connections[community], raddr)
+				if len(connections[community]) <= 0 {
+					delete(connections, community)
 				}
 				connectionsLock.Unlock()
 
-				log.Println("Disconnected from client with address", raddr, "in community", communityID)
+				log.Println("Disconnected from client with address", raddr, "in community", community)
 
 				if err := conn.Close(); err != nil {
 					panic(err)
@@ -252,16 +253,16 @@ func main() {
 			}()
 
 			connectionsLock.Lock()
-			if _, exists := connections[communityID]; !exists {
-				connections[communityID] = map[string]connection{}
+			if _, exists := connections[community]; !exists {
+				connections[community] = map[string]connection{}
 			}
-			connections[communityID][raddr] = connection{
+			connections[community][raddr] = connection{
 				conn:   conn,
 				closer: make(chan struct{}),
 			}
 			connectionsLock.Unlock()
 
-			log.Println("Connected to client with address", raddr, "in community", communityID)
+			log.Println("Connected to client with address", raddr, "in community", community)
 
 			if err := conn.SetReadDeadline(time.Now().Add(*heartbeat)); err != nil {
 				panic(err)
@@ -289,7 +290,7 @@ func main() {
 					}
 
 					if *verbose {
-						log.Println("Received message with type", messageType, "from client with address", raddr, "in community", communityID)
+						log.Println("Received message with type", messageType, "from client with address", raddr, "in community", community)
 					}
 
 					inputs <- input{messageType, p}
@@ -298,18 +299,18 @@ func main() {
 
 			for {
 				select {
-				case <-connections[communityID][raddr].closer:
+				case <-connections[community][raddr].closer:
 					return
 				case err := <-errs:
 					panic(err)
 				case input := <-inputs:
-					for id, conn := range connections[communityID] {
+					for id, conn := range connections[community] {
 						if id == raddr {
 							continue
 						}
 
 						if *verbose {
-							log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", communityID)
+							log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", community)
 						}
 
 						if err := conn.conn.WriteMessage(input.messageType, input.p); err != nil {
@@ -322,7 +323,7 @@ func main() {
 					}
 				case <-pings.C:
 					if *verbose {
-						log.Println("Sending ping to client with address", raddr, "in community", communityID)
+						log.Println("Sending ping to client with address", raddr, "in community", community)
 					}
 
 					if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
@@ -337,39 +338,34 @@ func main() {
 		case http.MethodPost:
 			// Create persistent community
 			_, p, ok := r.BasicAuth()
-			if !ok || p != *password {
+			if !ok || p != *apiPassword {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(http.StatusUnauthorized)
 			}
 
-			communityPassword := r.URL.Query().Get("password")
-			if strings.TrimSpace(communityPassword) == "" {
+			password := r.URL.Query().Get("password")
+			if strings.TrimSpace(password) == "" {
 				panic(errMissingPassword)
 			}
 
-			path := strings.Split(r.URL.Path, "/")
-			if len(path) < 1 {
-				panic(errMissingPath)
+			community := r.URL.Query().Get("community")
+			if strings.TrimSpace(community) == "" {
+				panic(errMissingCommunity)
 			}
 
-			communityID := path[len(path)-1]
-			if strings.TrimSpace(communityID) == "" {
-				panic(errMissingCommunityID)
-			}
-
-			community, err := communities.CreatePersistentCommunity(ctx, communityID, communityPassword)
+			c, err := communities.CreatePersistentCommunity(ctx, community, password)
 			if err != nil {
 				panic(err)
 			}
 
-			pc := persisters.Community{
-				ID:         community.ID,
-				Clients:    community.Clients,
-				Persistent: community.Persistent,
+			cc := persisters.Community{
+				ID:         c.ID,
+				Clients:    c.Clients,
+				Persistent: c.Persistent,
 			}
 
-			j, err := json.Marshal(pc)
+			j, err := json.Marshal(cc)
 			if err != nil {
 				panic(err)
 			}
@@ -382,23 +378,18 @@ func main() {
 		case http.MethodDelete:
 			// Delete persistent community
 			_, p, ok := r.BasicAuth()
-			if !ok || p != *password {
+			if !ok || p != *apiPassword {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(http.StatusUnauthorized)
 			}
 
-			path := strings.Split(r.URL.Path, "/")
-			if len(path) < 1 {
-				panic(errMissingPath)
+			community := r.URL.Query().Get("community")
+			if strings.TrimSpace(community) == "" {
+				panic(errMissingCommunity)
 			}
 
-			communityID := path[len(path)-1]
-			if strings.TrimSpace(communityID) == "" {
-				panic(errMissingCommunityID)
-			}
-
-			if err := communities.DeleteCommunity(ctx, communityID); err != nil {
+			if err := communities.DeleteCommunity(ctx, community); err != nil {
 				if err == sql.ErrNoRows {
 					rw.WriteHeader(http.StatusNotFound)
 
@@ -408,7 +399,7 @@ func main() {
 				}
 			}
 
-			for _, conn := range connections[communityID] {
+			for _, conn := range connections[community] {
 				close(conn.closer)
 			}
 
