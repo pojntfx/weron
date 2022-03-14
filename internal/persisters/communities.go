@@ -54,7 +54,7 @@ func (p *CommunitiesPersister) Open() error {
 
 func (p *CommunitiesPersister) AddClientsToCommunity(
 	ctx context.Context,
-	communityID string,
+	community string,
 	password string,
 ) error {
 	tx, err := p.sqlite.DB.BeginTx(ctx, nil)
@@ -71,17 +71,17 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 		return err
 	}
 
-	community, err := models.FindCommunity(ctx, tx, communityID)
+	c, err := models.FindCommunity(ctx, tx, community)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			community = &models.Community{
-				ID:         communityID,
+			c = &models.Community{
+				ID:         community,
 				Password:   string(hashedPassword),
 				Clients:    1,
 				Persistent: false,
 			}
 
-			if err := community.Insert(ctx, tx, boil.Infer()); err != nil {
+			if err := c.Insert(ctx, tx, boil.Infer()); err != nil {
 				if err := tx.Rollback(); err != nil {
 					return err
 				}
@@ -99,7 +99,7 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 		}
 	}
 
-	if bcrypt.CompareHashAndPassword([]byte(community.Password), []byte(password)) != nil {
+	if bcrypt.CompareHashAndPassword([]byte(c.Password), []byte(password)) != nil {
 		if err := tx.Rollback(); err != nil {
 			return err
 		}
@@ -107,9 +107,9 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 		return ErrWrongPassword
 	}
 
-	community.Clients += 1
+	c.Clients += 1
 
-	if _, err := community.Update(ctx, tx, boil.Infer()); err != nil {
+	if _, err := c.Update(ctx, tx, boil.Infer()); err != nil {
 		if err := tx.Rollback(); err != nil {
 			return err
 		}
@@ -122,14 +122,14 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 
 func (p *CommunitiesPersister) RemoveClientFromCommunity(
 	ctx context.Context,
-	communityID string,
+	community string,
 ) error {
 	tx, err := p.sqlite.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	community, err := models.FindCommunity(ctx, tx, communityID)
+	c, err := models.FindCommunity(ctx, tx, community)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if err := tx.Rollback(); err != nil {
@@ -146,10 +146,10 @@ func (p *CommunitiesPersister) RemoveClientFromCommunity(
 		return err
 	}
 
-	community.Clients -= 1
-	if community.Clients <= 0 {
-		if !community.Persistent {
-			if _, err := community.Delete(ctx, tx); err != nil {
+	c.Clients -= 1
+	if c.Clients <= 0 {
+		if !c.Persistent {
+			if _, err := c.Delete(ctx, tx); err != nil {
 				if err := tx.Rollback(); err != nil {
 					return err
 				}
@@ -160,10 +160,10 @@ func (p *CommunitiesPersister) RemoveClientFromCommunity(
 			return tx.Commit()
 		}
 
-		community.Clients = 0
+		c.Clients = 0
 	}
 
-	if _, err := community.Update(ctx, tx, boil.Infer()); err != nil {
+	if _, err := c.Update(ctx, tx, boil.Infer()); err != nil {
 		if err := tx.Rollback(); err != nil {
 			return err
 		}
@@ -211,21 +211,21 @@ func (p *CommunitiesPersister) GetPersistent(
 		return nil, err
 	}
 
-	pc := []Community{}
+	cc := []Community{}
 	for _, community := range c {
-		pc = append(pc, Community{
+		cc = append(cc, Community{
 			ID:         community.ID,
 			Clients:    community.Clients,
 			Persistent: community.Persistent,
 		})
 	}
 
-	return pc, nil
+	return cc, nil
 }
 
 func (p *CommunitiesPersister) CreatePersistentCommunity(
 	ctx context.Context,
-	communityID string,
+	community string,
 	password string,
 ) (*models.Community, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -233,26 +233,26 @@ func (p *CommunitiesPersister) CreatePersistentCommunity(
 		return nil, err
 	}
 
-	community := &models.Community{
-		ID:         communityID,
+	c := &models.Community{
+		ID:         community,
 		Password:   string(hashedPassword),
 		Clients:    0,
 		Persistent: true,
 	}
 
-	if err := community.Insert(ctx, p.sqlite.DB, boil.Infer()); err != nil {
+	if err := c.Insert(ctx, p.sqlite.DB, boil.Infer()); err != nil {
 		return nil, err
 	}
 
-	return community, nil
+	return c, nil
 }
 
 func (p *CommunitiesPersister) DeleteCommunity(
 	ctx context.Context,
-	communityID string,
+	community string,
 ) error {
 	n, err := models.Communities(
-		qm.Where(models.CommunityColumns.ID+"= ?", communityID),
+		qm.Where(models.CommunityColumns.ID+"= ?", community),
 	).DeleteAll(ctx, p.sqlite.DB)
 	if err != nil {
 		return err

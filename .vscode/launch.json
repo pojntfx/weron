@@ -27,7 +27,7 @@
       "console": "integratedTerminal",
       "mode": "auto",
       "program": "cmd/webrtcfd-signaling-server/main.go",
-      "args": ["-verbose", "-cleanup", "-password", "asdf"]
+      "args": ["-verbose", "-cleanup", "-api-password", "asdf"]
     }
   ]
 }

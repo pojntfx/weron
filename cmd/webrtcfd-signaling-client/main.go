@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"path"
 	"strings"
 	"time"
 
@@ -18,23 +17,24 @@ import (
 )
 
 var (
-	errMissingCommunityID = errors.New("missing community ID")
-	errMissingPassword    = errors.New("missing password")
-	errMissingKey         = errors.New("missing encryption key")
+	errMissingCommunity = errors.New("missing community")
+	errMissingPassword  = errors.New("missing password")
+
+	errMissingKey = errors.New("missing key")
 )
 
 func main() {
 	raddr := flag.String("raddr", "wss://webrtcfd.herokuapp.com/", "Remote address")
 	timeout := flag.Duration("timeout", time.Second*10, "Time to wait for connections")
-	communityID := flag.String("community", "", "ID of community to join")
+	community := flag.String("community", "", "ID of community to join")
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
 
-	if strings.TrimSpace(*communityID) == "" {
-		panic(errMissingCommunityID)
+	if strings.TrimSpace(*community) == "" {
+		panic(errMissingCommunity)
 	}
 
 	if strings.TrimSpace(*password) == "" {
@@ -52,10 +52,9 @@ func main() {
 		panic(err)
 	}
 
-	u.Path = path.Join(u.Path, *communityID)
-
 	q := u.Query()
-	q.Add("password", *password)
+	q.Set("community", *community)
+	q.Set("password", *password)
 	u.RawQuery = q.Encode()
 
 	lines := make(chan []byte)
@@ -125,14 +124,14 @@ func main() {
 					input, err = encryption.Decrypt(input, []byte(*key))
 					if err != nil {
 						if *verbose {
-							log.Println("Could not decrypt message with length", len(input), "for signaler with address", conn.RemoteAddr(), "in community", *communityID+", skipping")
+							log.Println("Could not decrypt message with length", len(input), "for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
 						}
 
 						continue
 					}
 
 					if *verbose {
-						log.Println("Received message with length", len(input), "from signaler with address", conn.RemoteAddr(), "in community", *communityID)
+						log.Println("Received message with length", len(input), "from signaler with address", conn.RemoteAddr(), "in community", *community)
 					}
 
 					fmt.Printf("%s\n", input)
@@ -143,7 +142,7 @@ func main() {
 					}
 
 					if *verbose {
-						log.Println("Sending message with length", len(line), "to signaler with address", conn.RemoteAddr(), "in community", *communityID)
+						log.Println("Sending message with length", len(line), "to signaler with address", conn.RemoteAddr(), "in community", *community)
 					}
 
 					if err := conn.WriteMessage(websocket.TextMessage, line); err != nil {
