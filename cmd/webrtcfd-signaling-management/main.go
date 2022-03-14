@@ -41,8 +41,9 @@ Usage:
   %s [args] <command>
 
 Available Commands:
-  list		List persistent communities
+  list		List persistent and ephermal communities
   create	Create a persistent community
+  delete	Delete a persistent or ephermal community
 
 Flags:
 `, os.Args[0], os.Args[0])
@@ -96,7 +97,7 @@ Flags:
 			panic(err)
 		}
 
-		pc := []persisters.PersistentCommunity{}
+		pc := []persisters.Community{}
 		if err := json.Unmarshal(body, &pc); err != nil {
 			panic(err)
 		}
@@ -104,12 +105,12 @@ Flags:
 		w := csv.NewWriter(os.Stdout)
 		defer w.Flush()
 
-		if err := w.Write([]string{"id", "clients"}); err != nil {
+		if err := w.Write([]string{"id", "clients", "persistent"}); err != nil {
 			panic(err)
 		}
 
 		for _, community := range pc {
-			if err := w.Write([]string{community.ID, fmt.Sprintf("%v", community.Clients)}); err != nil {
+			if err := w.Write([]string{community.ID, fmt.Sprintf("%v", community.Clients), fmt.Sprintf("%v", community.Persistent)}); err != nil {
 				panic(err)
 			}
 		}
@@ -156,7 +157,7 @@ Flags:
 			panic(err)
 		}
 
-		pc := persisters.PersistentCommunity{}
+		pc := persisters.Community{}
 		if err := json.Unmarshal(body, &pc); err != nil {
 			panic(err)
 		}
@@ -164,11 +165,11 @@ Flags:
 		w := csv.NewWriter(os.Stdout)
 		defer w.Flush()
 
-		if err := w.Write([]string{"id", "clients"}); err != nil {
+		if err := w.Write([]string{"id", "clients", "persistent"}); err != nil {
 			panic(err)
 		}
 
-		if err := w.Write([]string{pc.ID, fmt.Sprintf("%v", pc.Clients)}); err != nil {
+		if err := w.Write([]string{pc.ID, fmt.Sprintf("%v", pc.Clients), fmt.Sprintf("%v", pc.Persistent)}); err != nil {
 			panic(err)
 		}
 	case "delete":
