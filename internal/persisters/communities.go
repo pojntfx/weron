@@ -20,9 +20,10 @@ var (
 	ErrWrongPassword = errors.New("wrong password")
 )
 
-type PersistentCommunity struct {
-	ID      string `json:"id"`
-	Clients int64  `json:"clients"`
+type Community struct {
+	ID         string `json:"id"`
+	Clients    int64  `json:"clients"`
+	Persistent bool   `json:"persistent"`
 }
 
 type CommunitiesPersister struct {
@@ -202,19 +203,20 @@ func (p *CommunitiesPersister) Cleanup(
 	return tx.Commit()
 }
 
-func (p *CommunitiesPersister) GetPersistentCommunities(
+func (p *CommunitiesPersister) GetPersistent(
 	ctx context.Context,
-) ([]PersistentCommunity, error) {
-	c, err := models.Communities(qm.Where(models.CommunityColumns.Persistent+"= ?", true)).All(ctx, p.sqlite.DB)
+) ([]Community, error) {
+	c, err := models.Communities().All(ctx, p.sqlite.DB)
 	if err != nil {
 		return nil, err
 	}
 
-	pc := []PersistentCommunity{}
+	pc := []Community{}
 	for _, community := range c {
-		pc = append(pc, PersistentCommunity{
-			ID:      community.ID,
-			Clients: community.Clients,
+		pc = append(pc, Community{
+			ID:         community.ID,
+			Clients:    community.Clients,
+			Persistent: community.Persistent,
 		})
 	}
 
@@ -245,13 +247,12 @@ func (p *CommunitiesPersister) CreatePersistentCommunity(
 	return community, nil
 }
 
-func (p *CommunitiesPersister) DeletePersistentCommunity(
+func (p *CommunitiesPersister) DeleteCommunity(
 	ctx context.Context,
 	communityID string,
 ) error {
 	n, err := models.Communities(
 		qm.Where(models.CommunityColumns.ID+"= ?", communityID),
-		qm.Where(models.CommunityColumns.Persistent+"= ?", true),
 	).DeleteAll(ctx, p.sqlite.DB)
 	if err != nil {
 		return err

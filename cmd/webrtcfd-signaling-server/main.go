@@ -193,7 +193,7 @@ func main() {
 					panic(http.StatusUnauthorized)
 				}
 
-				pc, err := communities.GetPersistentCommunities(ctx)
+				pc, err := communities.GetPersistent(ctx)
 				if err != nil {
 					panic(err)
 				}
@@ -363,9 +363,10 @@ func main() {
 				panic(err)
 			}
 
-			pc := persisters.PersistentCommunity{
-				ID:      community.ID,
-				Clients: community.Clients,
+			pc := persisters.Community{
+				ID:         community.ID,
+				Clients:    community.Clients,
+				Persistent: community.Persistent,
 			}
 
 			j, err := json.Marshal(pc)
@@ -397,7 +398,7 @@ func main() {
 				panic(errMissingCommunityID)
 			}
 
-			if err := communities.DeletePersistentCommunity(ctx, communityID); err != nil {
+			if err := communities.DeleteCommunity(ctx, communityID); err != nil {
 				if err == sql.ErrNoRows {
 					rw.WriteHeader(http.StatusNotFound)
 
