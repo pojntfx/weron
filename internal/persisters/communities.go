@@ -17,7 +17,8 @@ import (
 //go:generate go-bindata -pkg communities -o ../../internal/db/sqlite/migrations/communities/migrations.go ../../db/sqlite/migrations/communities
 
 var (
-	ErrWrongPassword = errors.New("wrong password")
+	ErrWrongPassword               = errors.New("wrong password")
+	ErrEphermalCommunitiesDisabled = errors.New("creation of ephermal communites is disabled")
 )
 
 type Community struct {
@@ -56,6 +57,7 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 	ctx context.Context,
 	community string,
 	password string,
+	upsert bool,
 ) error {
 	tx, err := p.sqlite.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -74,6 +76,14 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 	c, err := models.FindCommunity(ctx, tx, community)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			if !upsert {
+				if err := tx.Rollback(); err != nil {
+					return err
+				}
+
+				return ErrEphermalCommunitiesDisabled
+			}
+
 			c = &models.Community{
 				ID:         community,
 				Password:   string(hashedPassword),
