@@ -6,6 +6,7 @@ go 1.17
 require (
 	github.com/friendsofgo/errors v0.9.2
 	github.com/gorilla/websocket v1.5.0
+	github.com/lib/pq v1.10.0
 	github.com/mattn/go-sqlite3 v1.14.12
 	github.com/rubenv/sql-migrate v1.1.1
 	github.com/volatiletech/null/v8 v8.1.2
