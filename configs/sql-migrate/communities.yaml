@@ -1,4 +1,8 @@
-production:
+sqlite:
   dialect: sqlite3
   datasource: /tmp/webrtcfd-communities.sqlite
   dir: db/sqlite/migrations/communities/
+psql:
+  dialect: postgres
+  datasource: dbname=webrtcfd_communities user=postgres sslmode=disable
+  dir: db/psql/migrations/communities/

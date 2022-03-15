@@ -1,6 +1,6 @@
 //go:build !((darwin && amd64) || (darwin && arm64) || (freebsd && amd64) || (linux && arm) || (linux && arm64) || (linux && 386) || (linux && amd64) || (linux && s390x) || (windows && amd64))
 
-package persisters
+package sqlite
 
 import (
 	"database/sql"
@@ -18,7 +18,7 @@ type SQLite struct {
 	DB *sql.DB
 }
 
-func (s *SQLite) Open() error {
+func (s *SQLite) RunMigrations() error {
 	// Create leading directories for database
 	if err := os.MkdirAll(filepath.Dir(s.DBPath), os.ModePerm); err != nil {
 		return err

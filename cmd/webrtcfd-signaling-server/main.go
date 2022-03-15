@@ -23,6 +23,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pojntfx/webrtcfd/internal/persisters"
+	"github.com/pojntfx/webrtcfd/internal/persisters/psql"
+	"github.com/pojntfx/webrtcfd/internal/persisters/sqlite"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
@@ -30,6 +32,8 @@ var (
 	errMissingCommunity   = errors.New("missing community")
 	errMissingPassword    = errors.New("missing password")
 	errMissingAPIPassword = errors.New("missing API password")
+
+	errUnknownDBType = errors.New("unknown DB type")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -49,11 +53,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	communitiesPath := filepath.Join(home, ".local", "share", "webrtcfd", "var", "lib", "webrtcfd", "communities.sqlite")
+	dbPath := filepath.Join(home, ".local", "share", "webrtcfd", "var", "lib", "webrtcfd", "communities.sqlite")
 
 	laddr := flag.String("laddr", ":1337", "Listening address (can also be set using the PORT env variable)")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
-	dbPath := flag.String("db", communitiesPath, "Database to use")
+	dbURL := flag.String("db-url", dbPath, "URL of database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase for PostgreSQL or mydatabase.sqlite for SQLite) (can also be set using the DATABASE_URL env variable)")
+	dbType := flag.String("db-type", persisters.DBTypeSQLite, "Type of database to use (available are sqlite and psql)")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
 	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
@@ -67,18 +72,6 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	communities := persisters.NewCommunitiesPersister(*dbPath)
-
-	if err := communities.Open(); err != nil {
-		panic(err)
-	}
-
-	if *cleanup {
-		if err := communities.Cleanup(ctx); err != nil {
-			panic(err)
-		}
-	}
 
 	addr, err := net.ResolveTCPAddr("tcp", *laddr)
 	if err != nil {
@@ -106,8 +99,36 @@ func main() {
 		*apiPassword = p
 	}
 
+	if u := os.Getenv("DATABASE_URL"); u != "" {
+		if *verbose {
+			log.Println("Using database URL from DATABASE_URL env variable")
+		}
+
+		*dbURL = u
+	}
+
 	if strings.TrimSpace(*apiPassword) == "" {
 		panic(errMissingAPIPassword)
+	}
+
+	var communities persisters.CommunitiesPersister
+	switch *dbType {
+	case persisters.DBTypeSQLite:
+		communities = sqlite.NewCommunitiesPersister()
+	case persisters.DBTypePSQL:
+		communities = psql.NewCommunitiesPersister()
+	default:
+		panic(errUnknownDBType)
+	}
+
+	if err := communities.Open(*dbURL); err != nil {
+		panic(err)
+	}
+
+	if *cleanup {
+		if err := communities.Cleanup(ctx); err != nil {
+			panic(err)
+		}
 	}
 
 	srv := &http.Server{Addr: addr.String()}
@@ -194,7 +215,7 @@ func main() {
 					panic(http.StatusUnauthorized)
 				}
 
-				pc, err := communities.GetPersistent(ctx)
+				pc, err := communities.GetCommunities(ctx)
 				if err != nil {
 					panic(err)
 				}
