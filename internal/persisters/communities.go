@@ -8,6 +8,7 @@ import (
 const (
 	DBTypeSQLite = "sqlite"
 	DBTypePSQL   = "psql"
+	DBTypeMemory = "memory"
 )
 
 var (

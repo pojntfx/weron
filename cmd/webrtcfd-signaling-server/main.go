@@ -23,6 +23,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pojntfx/webrtcfd/internal/persisters"
+	"github.com/pojntfx/webrtcfd/internal/persisters/memory"
 	"github.com/pojntfx/webrtcfd/internal/persisters/psql"
 	"github.com/pojntfx/webrtcfd/internal/persisters/sqlite"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -58,7 +59,7 @@ func main() {
 	laddr := flag.String("laddr", ":1337", "Listening address (can also be set using the PORT env variable)")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
 	dbURL := flag.String("db-url", dbPath, "URL of database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase for PostgreSQL or mydatabase.sqlite for SQLite) (can also be set using the DATABASE_URL env variable)")
-	dbType := flag.String("db-type", persisters.DBTypeSQLite, "Type of database to use (available are sqlite and psql)")
+	dbType := flag.String("db-type", persisters.DBTypeSQLite, "Type of database to use (available are sqlite, psql and memory)")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
 	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
@@ -117,6 +118,8 @@ func main() {
 		communities = sqlite.NewCommunitiesPersister()
 	case persisters.DBTypePSQL:
 		communities = psql.NewCommunitiesPersister()
+	case persisters.DBTypeMemory:
+		communities = memory.NewCommunitiesPersister()
 	default:
 		panic(errUnknownDBType)
 	}
