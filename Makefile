@@ -47,6 +47,10 @@ clean:
 clean-psql: clean
 	docker rm -f webrtcfd-postgres
 
+# Clean (for Redis)
+clean-redis: clean
+	docker rm -f webrtcfd-redis
+
 # Dependencies
 depend:
 	go install github.com/rubenv/sql-migrate/sql-migrate@latest
@@ -63,3 +67,7 @@ depend-psql: depend
 	sleep 5
 	sql-migrate up -env="psql" -config configs/sql-migrate/communities.yaml
 	go generate ./internal/persisters/psql/...
+
+# Dependencies (for Redis)
+depend-redis: depend
+	docker run -d --name webrtcfd-redis -p 6379:6379 redis

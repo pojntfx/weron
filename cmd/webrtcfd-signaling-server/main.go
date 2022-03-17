@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -21,12 +19,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pojntfx/webrtcfd/internal/persisters"
 	"github.com/pojntfx/webrtcfd/internal/persisters/memory"
 	"github.com/pojntfx/webrtcfd/internal/persisters/psql"
 	"github.com/pojntfx/webrtcfd/internal/persisters/sqlite"
 	"github.com/volatiletech/sqlboiler/v4/boil"
+)
+
+const (
+	topicMessagesPrefix = "messages."
 )
 
 var (
@@ -39,9 +43,10 @@ var (
 	upgrader = websocket.Upgrader{}
 )
 
-type input struct {
-	messageType int
-	p           []byte
+type Input struct {
+	Raddr       string `json:"raddr"`
+	MessageType int    `json:"messageType"`
+	P           []byte `json:"p"`
 }
 
 type connection struct {
@@ -60,6 +65,7 @@ func main() {
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
 	dbURL := flag.String("db-url", dbPath, "URL of database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase for PostgreSQL or mydatabase.sqlite for SQLite) (can also be set using the DATABASE_URL env variable)")
 	dbType := flag.String("db-type", persisters.DBTypeSQLite, "Type of database to use (available are sqlite, psql and memory)")
+	brokerURL := flag.String("broker-url", "redis://localhost:6379/1", "URL of broker to use (i.e. redis://myuser:mypassword@localhost:6379/1 for Redis (can also be set using the REDIS_URL env variable)")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
 	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
@@ -108,6 +114,14 @@ func main() {
 		*dbURL = u
 	}
 
+	if u := os.Getenv("REDIS_URL"); u != "" {
+		if *verbose {
+			log.Println("Using broker URL from REDIS_URL env variable")
+		}
+
+		*brokerURL = u
+	}
+
 	if strings.TrimSpace(*apiPassword) == "" {
 		panic(errMissingAPIPassword)
 	}
@@ -139,6 +153,13 @@ func main() {
 	var connectionsLock sync.Mutex
 	connections := map[string]map[string]connection{}
 
+	redisURL, err := redis.ParseURL(*brokerURL)
+	if err != nil {
+		panic(err)
+	}
+
+	broker := redis.NewClient(redisURL).WithContext(ctx)
+
 	s := make(chan os.Signal)
 	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -155,12 +176,16 @@ func main() {
 
 			cancel()
 
-			if err := srv.Shutdown(ctx); err != nil {
-				if err == context.Canceled {
-					return
+			if err := broker.Close(); err != nil {
+				if err != context.Canceled {
+					panic(err)
 				}
+			}
 
-				panic(err)
+			if err := srv.Shutdown(ctx); err != nil {
+				if err != context.Canceled {
+					panic(err)
+				}
 			}
 		}()
 
@@ -176,17 +201,21 @@ func main() {
 
 		cancel()
 
-		if err := srv.Shutdown(ctx); err != nil {
-			if err == context.Canceled {
-				return
+		if err := broker.Close(); err != nil {
+			if err != context.Canceled {
+				panic(err)
 			}
+		}
 
-			panic(err)
+		if err := srv.Shutdown(ctx); err != nil {
+			if err != context.Canceled {
+				panic(err)
+			}
 		}
 	}()
 
 	srv.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		raddr := base64.StdEncoding.EncodeToString(sha256.New().Sum([]byte(r.RemoteAddr))) // Obfuscate remote address to prevent processing GDPR-sensitive information
+		raddr := uuid.New().String()
 
 		defer func() {
 			err := recover()
@@ -299,7 +328,6 @@ func main() {
 			pings := time.NewTicker(*heartbeat / 2)
 			defer pings.Stop()
 
-			inputs := make(chan input)
 			errs := make(chan error)
 			go func() {
 				for {
@@ -318,9 +346,29 @@ func main() {
 						log.Println("Received message with type", messageType, "from client with address", raddr, "in community", community)
 					}
 
-					inputs <- input{messageType, p}
+					data, err := json.Marshal(Input{raddr, messageType, p})
+					if err != nil {
+						errs <- err
+
+						return
+					}
+
+					if err := broker.Publish(ctx, topicMessagesPrefix+community, data); err.Err() != nil {
+						errs <- err.Err()
+
+						return
+					}
 				}
 			}()
+
+			pubsub := broker.Subscribe(ctx, topicMessagesPrefix+community)
+			defer func() {
+				if err := pubsub.Close(); err != nil {
+					panic(err)
+				}
+			}()
+
+			inputs := pubsub.Channel()
 
 			for {
 				select {
@@ -328,23 +376,23 @@ func main() {
 					return
 				case err := <-errs:
 					panic(err)
-				case input := <-inputs:
-					for id, conn := range connections[community] {
-						if id == raddr {
-							continue
-						}
+				case rawInput := <-inputs:
+					var input Input
+					if err := json.Unmarshal([]byte(rawInput.Payload), &input); err != nil {
+						panic(err)
+					}
 
-						if *verbose {
-							log.Println("Sending message with type", input.messageType, "to client with address", raddr, "in community", community)
-						}
+					// Prevent sending message back to sender
+					if input.Raddr == raddr {
+						continue
+					}
 
-						if err := conn.conn.WriteMessage(input.messageType, input.p); err != nil {
-							panic(err)
-						}
+					if err := conn.WriteMessage(input.MessageType, input.P); err != nil {
+						panic(err)
+					}
 
-						if err := conn.conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
-							panic(err)
-						}
+					if err := conn.SetWriteDeadline(time.Now().Add(*heartbeat)); err != nil {
+						panic(err)
 					}
 				case <-pings.C:
 					if *verbose {
