@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 
+	_ "github.com/lib/pq"
 	"github.com/pojntfx/webrtcfd/internal/db/psql/migrations/communities"
 	models "github.com/pojntfx/webrtcfd/internal/db/psql/models/communities"
-	"github.com/pojntfx/webrtcfd/internal/drivers/psql"
 	"github.com/pojntfx/webrtcfd/internal/persisters"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -26,20 +26,25 @@ func NewCommunitiesPersister() *CommunitiesPersister {
 }
 
 func (p *CommunitiesPersister) Open(dbURL string) error {
-	db := &psql.PSQL{
-		DBUrl: dbURL,
-		Migrations: migrate.AssetMigrationSource{
-			Asset:    communities.Asset,
-			AssetDir: communities.AssetDir,
-			Dir:      "../../../db/psql/migrations/communities",
-		},
-	}
-
-	if err := db.RunMigrations(); err != nil {
+	// Connect to the DB
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
 		return err
 	}
 
-	p.db = db.DB
+	// Configure the db
+	db.SetMaxOpenConns(1) // Prevent "database locked" errors
+
+	// Run migrations
+	if _, err := migrate.Exec(db, "postgres", migrate.AssetMigrationSource{
+		Asset:    communities.Asset,
+		AssetDir: communities.AssetDir,
+		Dir:      "../../../db/psql/migrations/communities",
+	}, migrate.Up); err != nil {
+		return err
+	}
+
+	p.db = db
 
 	return nil
 }
