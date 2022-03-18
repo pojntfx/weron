@@ -154,7 +154,7 @@ func (p *CommunitiesPersister) GetCommunities(
 	for _, community := range p.communities {
 		cc = append(cc, persisters.Community{
 			ID:         community.ID,
-			Clients:    int64(community.Clients),
+			Clients:    community.Clients,
 			Persistent: community.Persistent,
 		})
 	}
@@ -201,7 +201,7 @@ func (p *CommunitiesPersister) CreatePersistentCommunity(
 
 	cc := &persisters.Community{
 		ID:         c.ID,
-		Clients:    int64(c.Clients),
+		Clients:    c.Clients,
 		Persistent: c.Persistent,
 	}
 

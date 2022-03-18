@@ -1,6 +1,4 @@
 no-tests: true
-sqlite3:
-  dbname: /tmp/webrtcfd-communities.sqlite
 psql:
   dbname: webrtcfd_communities
   user: postgres

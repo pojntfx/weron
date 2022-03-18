@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,7 +24,6 @@ import (
 	"github.com/pojntfx/webrtcfd/internal/persisters"
 	"github.com/pojntfx/webrtcfd/internal/persisters/memory"
 	"github.com/pojntfx/webrtcfd/internal/persisters/psql"
-	"github.com/pojntfx/webrtcfd/internal/persisters/sqlite"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
@@ -38,8 +36,6 @@ var (
 	errMissingCommunity   = errors.New("missing community")
 	errMissingPassword    = errors.New("missing password")
 	errMissingAPIPassword = errors.New("missing API password")
-
-	errUnknownDBType = errors.New("unknown DB type")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -60,17 +56,10 @@ type connection struct {
 }
 
 func main() {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
-	}
-	dbPath := filepath.Join(home, ".local", "share", "webrtcfd", "var", "lib", "webrtcfd", "communities.sqlite")
-
 	laddr := flag.String("laddr", ":1337", "Listening address (can also be set using the PORT env variable)")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
-	dbURL := flag.String("db-url", dbPath, "URL of database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase for PostgreSQL or mydatabase.sqlite for SQLite) (can also be set using the DATABASE_URL env variable)")
-	dbType := flag.String("db-type", persisters.DBTypeSQLite, "Type of database to use (available are sqlite, psql and memory)")
-	brokerURL := flag.String("broker-url", "redis://localhost:6379/1", "URL of broker to use (i.e. redis://myuser:mypassword@localhost:6379/1 for Redis (can also be set using the REDIS_URL env variable)")
+	postgresURL := flag.String("postgres-url", "postgres://postgres@localhost:5432/webrtcfd_communities?sslmode=disable", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
+	redisURL := flag.String("redis-url", "redis://localhost:6379/1", "URL of Redis database to use (i.e. redis://myuser:mypassword@localhost:6379/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
 	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
@@ -116,7 +105,7 @@ func main() {
 			log.Println("Using database URL from DATABASE_URL env variable")
 		}
 
-		*dbURL = u
+		*postgresURL = u
 	}
 
 	if u := os.Getenv("REDIS_URL"); u != "" {
@@ -124,46 +113,41 @@ func main() {
 			log.Println("Using broker URL from REDIS_URL env variable")
 		}
 
-		*brokerURL = u
+		*redisURL = u
 	}
 
 	if strings.TrimSpace(*apiPassword) == "" {
 		panic(errMissingAPIPassword)
 	}
 
-	var communities persisters.CommunitiesPersister
-	switch *dbType {
-	case persisters.DBTypeSQLite:
-		communities = sqlite.NewCommunitiesPersister()
-	case persisters.DBTypePSQL:
-		communities = psql.NewCommunitiesPersister()
-	case persisters.DBTypeMemory:
-		communities = memory.NewCommunitiesPersister()
-	default:
-		panic(errUnknownDBType)
+	var db persisters.CommunitiesPersister
+	if strings.TrimSpace(*postgresURL) == "" {
+		db = memory.NewCommunitiesPersister()
+	} else {
+		db = psql.NewCommunitiesPersister()
 	}
 
-	if err := communities.Open(*dbURL); err != nil {
+	if err := db.Open(*postgresURL); err != nil {
 		panic(err)
 	}
 
 	if *cleanup {
-		if err := communities.Cleanup(ctx); err != nil {
+		if err := db.Cleanup(ctx); err != nil {
 			panic(err)
 		}
 	}
+
+	u, err := redis.ParseURL(*redisURL)
+	if err != nil {
+		panic(err)
+	}
+
+	broker := redis.NewClient(u).WithContext(ctx)
 
 	srv := &http.Server{Addr: addr.String()}
 
 	var connectionsLock sync.Mutex
 	connections := map[string]map[string]connection{}
-
-	redisURL, err := redis.ParseURL(*brokerURL)
-	if err != nil {
-		panic(err)
-	}
-
-	broker := redis.NewClient(redisURL).WithContext(ctx)
 
 	s := make(chan os.Signal)
 	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
@@ -197,7 +181,7 @@ func main() {
 		connectionsLock.Lock()
 		for c := range connections {
 			for range connections[c] {
-				if err := communities.RemoveClientFromCommunity(ctx, c); err != nil {
+				if err := db.RemoveClientFromCommunity(ctx, c); err != nil {
 					panic(err)
 				}
 			}
@@ -261,7 +245,7 @@ func main() {
 					panic(http.StatusUnauthorized)
 				}
 
-				pc, err := communities.GetCommunities(ctx)
+				pc, err := db.GetCommunities(ctx)
 				if err != nil {
 					panic(err)
 				}
@@ -284,7 +268,7 @@ func main() {
 				panic(errMissingPassword)
 			}
 
-			if err := communities.AddClientsToCommunity(ctx, community, password, *ephermalCommunities); err != nil {
+			if err := db.AddClientsToCommunity(ctx, community, password, *ephermalCommunities); err != nil {
 				if err == persisters.ErrWrongPassword || err == persisters.ErrEphermalCommunitiesDisabled {
 					rw.WriteHeader(http.StatusUnauthorized)
 
@@ -295,7 +279,7 @@ func main() {
 			}
 
 			defer func() {
-				if err := communities.RemoveClientFromCommunity(ctx, community); err != nil {
+				if err := db.RemoveClientFromCommunity(ctx, community); err != nil {
 					panic(err)
 				}
 			}()
@@ -441,7 +425,7 @@ func main() {
 				panic(errMissingCommunity)
 			}
 
-			c, err := communities.CreatePersistentCommunity(ctx, community, password)
+			c, err := db.CreatePersistentCommunity(ctx, community, password)
 			if err != nil {
 				panic(err)
 			}
@@ -476,7 +460,7 @@ func main() {
 				panic(errMissingCommunity)
 			}
 
-			if err := communities.DeleteCommunity(ctx, community); err != nil {
+			if err := db.DeleteCommunity(ctx, community); err != nil {
 				if err == sql.ErrNoRows {
 					rw.WriteHeader(http.StatusNotFound)
 
@@ -534,6 +518,8 @@ func main() {
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			if err == http.ErrServerClosed {
+				close(errs)
+
 				return
 			}
 

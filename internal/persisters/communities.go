@@ -5,12 +5,6 @@ import (
 	"errors"
 )
 
-const (
-	DBTypeSQLite = "sqlite"
-	DBTypePSQL   = "psql"
-	DBTypeMemory = "memory"
-)
-
 var (
 	ErrWrongPassword               = errors.New("wrong password")
 	ErrEphermalCommunitiesDisabled = errors.New("creation of ephermal communites is disabled")
@@ -18,7 +12,7 @@ var (
 
 type Community struct {
 	ID         string `json:"id"`
-	Clients    int64  `json:"clients"`
+	Clients    int    `json:"clients"`
 	Persistent bool   `json:"persistent"`
 }
 
