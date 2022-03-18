@@ -1,1 +1,1 @@
-web: bin/webrtcfd-signaling-server --db-type psql
+web: bin/webrtcfd-signaling-server
