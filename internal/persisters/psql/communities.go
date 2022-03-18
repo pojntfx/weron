@@ -50,7 +50,9 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 	password string,
 	upsert bool,
 ) error {
-	tx, err := p.db.BeginTx(ctx, nil)
+	tx, err := p.db.BeginTx(ctx, &sql.TxOptions{
+		Isolation: sql.LevelSerializable,
+	})
 	if err != nil {
 		return err
 	}

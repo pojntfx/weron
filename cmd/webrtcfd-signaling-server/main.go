@@ -31,6 +31,7 @@ import (
 
 const (
 	topicMessagesPrefix = "messages."
+	topicKick           = "kick"
 )
 
 var (
@@ -47,6 +48,10 @@ type Input struct {
 	Raddr       string `json:"raddr"`
 	MessageType int    `json:"messageType"`
 	P           []byte `json:"p"`
+}
+
+type Kick struct {
+	Community string `json:"community"`
 }
 
 type connection struct {
@@ -177,7 +182,7 @@ func main() {
 			cancel()
 
 			if err := broker.Close(); err != nil {
-				if err != context.Canceled {
+				if err != context.Canceled && err != redis.ErrClosed {
 					panic(err)
 				}
 			}
@@ -202,7 +207,7 @@ func main() {
 		cancel()
 
 		if err := broker.Close(); err != nil {
-			if err != context.Canceled {
+			if err != context.Canceled && err != redis.ErrClosed {
 				panic(err)
 			}
 		}
@@ -213,6 +218,15 @@ func main() {
 			}
 		}
 	}()
+
+	kickPubsub := broker.Subscribe(ctx, topicKick)
+	defer func() {
+		if err := kickPubsub.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	kicks := kickPubsub.Channel()
 
 	srv.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		raddr := uuid.New().String()
@@ -472,8 +486,13 @@ func main() {
 				}
 			}
 
-			for _, conn := range connections[community] {
-				close(conn.closer)
+			data, err := json.Marshal(Kick{community})
+			if err != nil {
+				panic(err)
+			}
+
+			if err := broker.Publish(ctx, topicKick, data); err.Err() != nil {
+				panic(err)
 			}
 
 			return
@@ -484,13 +503,51 @@ func main() {
 		}
 	})
 
-	log.Println("Listening on address", addr.String())
+	errs := make(chan error)
+	go func() {
+		for {
+			rawKick := <-kicks
 
-	if err := srv.ListenAndServe(); err != nil {
-		if err == http.ErrServerClosed {
+			if rawKick == nil {
+				// Channel closed
+				return
+			}
+
+			var kick Kick
+			if err := json.Unmarshal([]byte(rawKick.Payload), &kick); err != nil {
+				errs <- err
+
+				return
+			}
+
+			c, ok := connections[kick.Community]
+			if !ok {
+				continue
+			}
+
+			for _, conn := range c {
+				close(conn.closer)
+			}
+		}
+	}()
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			if err == http.ErrServerClosed {
+				return
+			}
+
+			errs <- err
+
 			return
 		}
+	}()
 
-		panic(err)
+	log.Println("Listening on address", addr.String())
+
+	for err := range errs {
+		if err != nil {
+			panic(err)
+		}
 	}
 }
