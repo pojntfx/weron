@@ -18,18 +18,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	rediserr "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/pojntfx/webrtcfd/internal/brokers"
+	"github.com/pojntfx/webrtcfd/internal/brokers/redis"
 	"github.com/pojntfx/webrtcfd/internal/persisters"
 	"github.com/pojntfx/webrtcfd/internal/persisters/memory"
 	"github.com/pojntfx/webrtcfd/internal/persisters/psql"
 	"github.com/volatiletech/sqlboiler/v4/boil"
-)
-
-const (
-	topicMessagesPrefix = "messages."
-	topicKick           = "kick"
 )
 
 var (
@@ -39,16 +36,6 @@ var (
 
 	upgrader = websocket.Upgrader{}
 )
-
-type Input struct {
-	Raddr       string `json:"raddr"`
-	MessageType int    `json:"messageType"`
-	P           []byte `json:"p"`
-}
-
-type Kick struct {
-	Community string `json:"community"`
-}
 
 type connection struct {
 	conn   *websocket.Conn
@@ -137,12 +124,17 @@ func main() {
 		}
 	}
 
-	u, err := redis.ParseURL(*redisURL)
-	if err != nil {
-		panic(err)
+	var broker brokers.CommunitiesBroker
+	if strings.TrimSpace(*redisURL) == "" {
+		// TODO: Add in-process broker
+		panic("not implemented")
+	} else {
+		broker = redis.NewCommunitiesBroker()
 	}
 
-	broker := redis.NewClient(u).WithContext(ctx)
+	if err := broker.Open(ctx, *redisURL); err != nil {
+		panic(err)
+	}
 
 	srv := &http.Server{Addr: addr.String()}
 
@@ -166,7 +158,7 @@ func main() {
 			cancel()
 
 			if err := broker.Close(); err != nil {
-				if err != context.Canceled && err != redis.ErrClosed {
+				if err != context.Canceled && err != rediserr.ErrClosed {
 					panic(err)
 				}
 			}
@@ -191,7 +183,7 @@ func main() {
 		cancel()
 
 		if err := broker.Close(); err != nil {
-			if err != context.Canceled && err != redis.ErrClosed {
+			if err != context.Canceled && err != rediserr.ErrClosed {
 				panic(err)
 			}
 		}
@@ -203,14 +195,13 @@ func main() {
 		}
 	}()
 
-	kickPubsub := broker.Subscribe(ctx, topicKick)
+	errs := make(chan error)
+	kicks, closeKicks := broker.SubscribeToKicks(ctx, errs)
 	defer func() {
-		if err := kickPubsub.Close(); err != nil {
+		if err := closeKicks(); err != nil {
 			panic(err)
 		}
 	}()
-
-	kicks := kickPubsub.Channel()
 
 	srv.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		raddr := uuid.New().String()
@@ -344,29 +335,24 @@ func main() {
 						log.Println("Received message with type", messageType, "from client with address", raddr, "in community", community)
 					}
 
-					data, err := json.Marshal(Input{raddr, messageType, p})
-					if err != nil {
+					if err := broker.PublishInput(ctx, brokers.Input{
+						Raddr:       raddr,
+						MessageType: messageType,
+						P:           p,
+					}, community); err != nil {
 						errs <- err
 
 						return
 					}
-
-					if err := broker.Publish(ctx, topicMessagesPrefix+community, data); err.Err() != nil {
-						errs <- err.Err()
-
-						return
-					}
 				}
 			}()
 
-			pubsub := broker.Subscribe(ctx, topicMessagesPrefix+community)
+			inputs, closeInputs := broker.SubscribeToInputs(ctx, errs, community)
 			defer func() {
-				if err := pubsub.Close(); err != nil {
+				if err := closeInputs(); err != nil {
 					panic(err)
 				}
 			}()
-
-			inputs := pubsub.Channel()
 
 			for {
 				select {
@@ -374,12 +360,7 @@ func main() {
 					return
 				case err := <-errs:
 					panic(err)
-				case rawInput := <-inputs:
-					var input Input
-					if err := json.Unmarshal([]byte(rawInput.Payload), &input); err != nil {
-						panic(err)
-					}
-
+				case input := <-inputs:
 					// Prevent sending message back to sender
 					if input.Raddr == raddr {
 						continue
@@ -470,12 +451,9 @@ func main() {
 				}
 			}
 
-			data, err := json.Marshal(Kick{community})
-			if err != nil {
-				panic(err)
-			}
-
-			if err := broker.Publish(ctx, topicKick, data); err.Err() != nil {
+			if err := broker.PublishKick(ctx, brokers.Kick{
+				Community: community,
+			}); err != nil {
 				panic(err)
 			}
 
@@ -487,22 +465,9 @@ func main() {
 		}
 	})
 
-	errs := make(chan error)
 	go func() {
 		for {
-			rawKick := <-kicks
-
-			if rawKick == nil {
-				// Channel closed
-				return
-			}
-
-			var kick Kick
-			if err := json.Unmarshal([]byte(rawKick.Payload), &kick); err != nil {
-				errs <- err
-
-				return
-			}
+			kick := <-kicks
 
 			c, ok := connections[kick.Community]
 			if !ok {
