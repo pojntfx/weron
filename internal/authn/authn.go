@@ -1,5 +1,8 @@
 package authn
 
+import "context"
+
 type Authn interface {
-	Validate(token string) bool
+	Open(context.Context) error
+	Validate(token string) error
 }
