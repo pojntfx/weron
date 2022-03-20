@@ -1,0 +1,57 @@
+#!/bin/bash
+
+set -e
+
+# Test
+if [ "$1" = "test" ]; then
+    # Install native dependencies
+    apt update
+    apt install -y docker.io
+
+    # Generate dependencies
+    make depend
+
+    # Run tests
+    make test
+
+    exit 0
+fi
+
+# Go
+if [ "$1" = "go" ]; then
+    # Install native dependencies
+    apt update
+    apt install -y curl make docker.io
+
+    # Install bagop
+    curl -L -o /tmp/bagop "https://github.com/pojntfx/bagop/releases/latest/download/bagop.linux-$(uname -m)"
+    install /tmp/bagop /usr/local/bin
+
+    # Generate dependencies
+    make depend
+
+    # Build
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-server -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-client -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-client DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-management -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
+
+    exit 0
+fi
+
+# gccgo
+if [ "$1" = "gccgo" ]; then
+    # Install native dependencies
+    apt update
+    apt install -y curl docker.io
+
+    # Install bagccgop
+    curl -L -o /tmp/bagccgop "https://github.com/pojntfx/bagccgop/releases/latest/download/bagccgop.linux-$(uname -m)"
+    install /tmp/bagccgop /usr/local/bin
+
+    # Build
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-server -n -r 'make depend' -s 'build-essential,automake,docker.io' -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-client -n -r 'make depend' -s 'build-essential,automake,docker.io' -p 'make build/webrtcfd-signaling-client DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-management -n -r 'make depend' -s 'build-essential,automake,docker.io' -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
+
+    exit 0
+fi
