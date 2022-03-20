@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pojntfx/webrtcfd/internal/authn"
 	"github.com/pojntfx/webrtcfd/internal/authn/basic"
+	"github.com/pojntfx/webrtcfd/internal/authn/oidc"
 	"github.com/pojntfx/webrtcfd/internal/brokers"
 	"github.com/pojntfx/webrtcfd/internal/brokers/process"
 	"github.com/pojntfx/webrtcfd/internal/brokers/redis"
@@ -53,8 +54,8 @@ func main() {
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
 	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.")
-	oidcIssuer := flag.String("oidc-issuer", "", "OIDC Issuer (can also be set using the OIDC_ISSUER env variable)")
-	oidcClientID := flag.String("oidc-client-id", "", "OIDC Client ID (can also be set using the OIDC_CLIENT_ID env variable)")
+	oidcIssuer := flag.String("oidc-issuer", "", "OIDC Issuer (i.e. https://pojntfx.eu.auth0.com/) (can also be set using the OIDC_ISSUER env variable)")
+	oidcClientID := flag.String("oidc-client-id", "", "OIDC Client ID (i.e. myoidcclientid) (can also be set using the OIDC_CLIENT_ID env variable)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -160,7 +161,11 @@ func main() {
 	if strings.TrimSpace(*oidcIssuer) == "" && strings.TrimSpace(*oidcClientID) == "" {
 		authn = basic.NewAuthn(*apiPassword)
 	} else {
-		panic("not implemented")
+		authn = oidc.NewAuthn(*oidcIssuer, *oidcClientID)
+	}
+
+	if err := authn.Open(ctx); err != nil {
+		panic(err)
 	}
 
 	srv := &http.Server{Addr: addr.String()}
@@ -257,7 +262,7 @@ func main() {
 			if strings.TrimSpace(community) == "" {
 				// List communities
 				_, p, ok := r.BasicAuth()
-				if !ok || !authn.Validate(p) {
+				if err := authn.Validate(p); !ok || err != nil {
 					rw.WriteHeader(http.StatusUnauthorized)
 
 					panic(http.StatusUnauthorized)
@@ -417,7 +422,7 @@ func main() {
 		case http.MethodPost:
 			// Create persistent community
 			_, p, ok := r.BasicAuth()
-			if !ok || !authn.Validate(p) {
+			if err := authn.Validate(p); !ok || err != nil {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(http.StatusUnauthorized)
@@ -457,7 +462,7 @@ func main() {
 		case http.MethodDelete:
 			// Delete persistent community
 			_, p, ok := r.BasicAuth()
-			if !ok || !authn.Validate(p) {
+			if err := authn.Validate(p); !ok || err != nil {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(http.StatusUnauthorized)
