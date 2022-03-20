@@ -4,6 +4,7 @@ module github.com/pojntfx/webrtcfd
 go 1.17
 
 require (
+	github.com/dustin/go-broadcast v0.0.0-20211018055107-71439988bd91
 	github.com/friendsofgo/errors v0.9.2
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.3.0
