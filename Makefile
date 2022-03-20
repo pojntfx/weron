@@ -5,7 +5,7 @@ OUTPUT_DIR ?= out
 DST ?=
 
 # Private variables
-obj = webrtcfd-signaling-server webrtcfd-signaling-client
+obj = webrtcfd-signaling-server webrtcfd-signaling-client webrtcfd-signaling-management
 all: $(addprefix build/,$(obj))
 
 # Build
