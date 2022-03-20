@@ -36,7 +36,6 @@ func (c *CommunitiesBroker) SubscribeToKicks(ctx context.Context, errs chan erro
 	kicks := make(chan brokers.Kick)
 
 	kickPubsub := c.client.Subscribe(ctx, topicKick)
-
 	rawKicks := kickPubsub.Channel()
 
 	go func() {
@@ -71,7 +70,6 @@ func (c *CommunitiesBroker) SubscribeToInputs(ctx context.Context, errs chan err
 	inputs := make(chan brokers.Input)
 
 	inputsPubsub := c.client.Subscribe(ctx, topicMessagesPrefix+community)
-
 	rawKicks := inputsPubsub.Channel()
 
 	go func() {

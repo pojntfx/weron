@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pojntfx/webrtcfd/internal/brokers"
+	"github.com/pojntfx/webrtcfd/internal/brokers/process"
 	"github.com/pojntfx/webrtcfd/internal/brokers/redis"
 	"github.com/pojntfx/webrtcfd/internal/persisters"
 	"github.com/pojntfx/webrtcfd/internal/persisters/memory"
@@ -45,8 +46,8 @@ type connection struct {
 func main() {
 	laddr := flag.String("laddr", ":1337", "Listening address (can also be set using the PORT env variable)")
 	heartbeat := flag.Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
-	postgresURL := flag.String("postgres-url", "postgres://postgres@localhost:5432/webrtcfd_communities?sslmode=disable", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
-	redisURL := flag.String("redis-url", "redis://localhost:6379/1", "URL of Redis database to use (i.e. redis://myuser:mypassword@localhost:6379/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
+	postgresURL := flag.String("postgres-url", "", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
+	redisURL := flag.String("redis-url", "", "URL of Redis database to use (i.e. redis://myuser:mypassword@localhost:6379/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
 	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
@@ -126,8 +127,7 @@ func main() {
 
 	var broker brokers.CommunitiesBroker
 	if strings.TrimSpace(*redisURL) == "" {
-		// TODO: Add in-process broker
-		panic("not implemented")
+		broker = process.NewCommunitiesBroker()
 	} else {
 		broker = redis.NewCommunitiesBroker()
 	}
