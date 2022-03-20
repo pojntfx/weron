@@ -49,9 +49,9 @@ if [ "$1" = "gccgo" ]; then
     install /tmp/bagccgop /usr/local/bin
 
     # Build
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-server -n -r 'make depend' -s 'build-essential,automake,docker.io' -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-client -n -r 'make depend' -s 'build-essential,automake,docker.io' -p 'make build/webrtcfd-signaling-client DST=$DST' -d out
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-management -n -r 'make depend' -s 'build-essential,automake,docker.io' -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-server -n -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-client -n -p 'make build/webrtcfd-signaling-client DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-management -n -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
 
     exit 0
 fi
