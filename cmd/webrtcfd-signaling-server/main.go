@@ -21,6 +21,8 @@ import (
 	rediserr "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/pojntfx/webrtcfd/internal/authn"
+	"github.com/pojntfx/webrtcfd/internal/authn/basic"
 	"github.com/pojntfx/webrtcfd/internal/brokers"
 	"github.com/pojntfx/webrtcfd/internal/brokers/process"
 	"github.com/pojntfx/webrtcfd/internal/brokers/redis"
@@ -49,8 +51,10 @@ func main() {
 	postgresURL := flag.String("postgres-url", "", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
 	redisURL := flag.String("redis-url", "", "URL of Redis database to use (i.e. redis://myuser:mypassword@localhost:6379/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
 	cleanup := flag.Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
-	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
 	ephermalCommunities := flag.Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
+	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.")
+	oidcIssuer := flag.String("oidc-issuer", "", "OIDC Issuer (can also be set using the OIDC_ISSUER env variable)")
+	oidcClientID := flag.String("oidc-client-id", "", "OIDC Client ID (can also be set using the OIDC_CLIENT_ID env variable)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -104,6 +108,22 @@ func main() {
 		*redisURL = u
 	}
 
+	if u := os.Getenv("OIDC_ISSUER"); u != "" {
+		if *verbose {
+			log.Println("Using OIDC issuer from OIDC_ISSUER env variable")
+		}
+
+		*oidcIssuer = u
+	}
+
+	if u := os.Getenv("OIDC_CLIENT_ID"); u != "" {
+		if *verbose {
+			log.Println("Using OIDC client ID from OIDC_CLIENT_ID env variable")
+		}
+
+		*oidcClientID = u
+	}
+
 	if strings.TrimSpace(*apiPassword) == "" {
 		panic(errMissingAPIPassword)
 	}
@@ -134,6 +154,13 @@ func main() {
 
 	if err := broker.Open(ctx, *redisURL); err != nil {
 		panic(err)
+	}
+
+	var authn authn.Authn
+	if strings.TrimSpace(*oidcIssuer) == "" && strings.TrimSpace(*oidcClientID) == "" {
+		authn = basic.NewAuthn(*apiPassword)
+	} else {
+		panic("not implemented")
 	}
 
 	srv := &http.Server{Addr: addr.String()}
@@ -230,7 +257,7 @@ func main() {
 			if strings.TrimSpace(community) == "" {
 				// List communities
 				_, p, ok := r.BasicAuth()
-				if !ok || p != *apiPassword {
+				if !ok || !authn.Validate(p) {
 					rw.WriteHeader(http.StatusUnauthorized)
 
 					panic(http.StatusUnauthorized)
@@ -390,7 +417,7 @@ func main() {
 		case http.MethodPost:
 			// Create persistent community
 			_, p, ok := r.BasicAuth()
-			if !ok || p != *apiPassword {
+			if !ok || !authn.Validate(p) {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(http.StatusUnauthorized)
@@ -430,7 +457,7 @@ func main() {
 		case http.MethodDelete:
 			// Delete persistent community
 			_, p, ok := r.BasicAuth()
-			if !ok || p != *apiPassword {
+			if !ok || !authn.Validate(p) {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(http.StatusUnauthorized)
