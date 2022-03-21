@@ -28,7 +28,7 @@ var (
 
 func main() {
 	raddr := flag.String("raddr", "https://webrtcfd.herokuapp.com/", "Remote address")
-	apiPassword := flag.String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable)")
+	apiPassword := flag.String("api-password", "", "Password (or OIDC token) for the management API (can also be set using the API_PASSWORD env variable)")
 	community := flag.String("community", "", "ID of community to create")
 	password := flag.String("password", "", "Password for community")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
