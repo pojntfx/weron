@@ -28,6 +28,7 @@ func (a *Authn) Open(ctx context.Context) error {
 		return err
 	}
 
+	a.ctx = ctx
 	a.verifier = provider.Verifier(&ioidc.Config{ClientID: a.clientID})
 
 	return nil

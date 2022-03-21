@@ -125,7 +125,7 @@ func main() {
 		*oidcClientID = u
 	}
 
-	if strings.TrimSpace(*apiPassword) == "" {
+	if (strings.TrimSpace(*oidcIssuer) == "" && strings.TrimSpace(*oidcClientID) == "") && strings.TrimSpace(*apiPassword) == "" {
 		panic(errMissingAPIPassword)
 	}
 
