@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
+
 	"github.com/gorilla/websocket"
+	websocketapi "github.com/pojntfx/webrtcfd/internal/api/websocket"
 	"github.com/pojntfx/webrtcfd/internal/encryption"
 )
 
@@ -134,7 +137,35 @@ func main() {
 						log.Println("Received message with length", len(input), "from signaler with address", conn.RemoteAddr(), "in community", *community)
 					}
 
-					fmt.Printf("%s\n", input)
+					var message websocketapi.Message
+					if err := json.Unmarshal(input, &message); err != nil {
+						if *verbose {
+							log.Println("Could not unmarshal message for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+						}
+
+						continue
+					}
+
+					switch message.Type {
+					case websocketapi.TypeIntroduction:
+						var introduction websocketapi.Introduction
+						if err := json.Unmarshal(input, &introduction); err != nil {
+							if *verbose {
+								log.Println("Could not unmarshal introduction for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+							}
+
+							continue
+						}
+
+						fmt.Println(introduction)
+					default:
+						if *verbose {
+							log.Println("Got message with unknown type", message.Type, "for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+						}
+
+						continue
+					}
+
 				case line := <-lines:
 					line, err = encryption.Encrypt(line, []byte(*key))
 					if err != nil {
