@@ -1,19 +1,17 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	websocketapi "github.com/pojntfx/webrtcfd/internal/api/websocket"
 	"github.com/pojntfx/webrtcfd/internal/encryption"
@@ -61,12 +59,6 @@ func main() {
 	u.RawQuery = q.Encode()
 
 	lines := make(chan []byte)
-	go func() {
-		scan := bufio.NewScanner(os.Stdin)
-		for scan.Scan() {
-			lines <- scan.Bytes()
-		}
-	}()
 	defer close(lines)
 
 	for {
@@ -119,6 +111,21 @@ func main() {
 				}
 			}()
 
+			id := uuid.New().String()
+
+			go func() {
+				p, err := json.Marshal(websocketapi.NewIntroduction(id))
+				if err != nil {
+					errs <- err
+
+					return
+				}
+
+				lines <- p
+
+				log.Println("Introduced to signaler with address", *raddr, "and ID", id)
+			}()
+
 			for {
 				select {
 				case err := <-errs:
@@ -157,7 +164,11 @@ func main() {
 							continue
 						}
 
-						fmt.Println(introduction)
+						if *verbose {
+							log.Println("Received introduction", introduction, "from signaler with address", conn.RemoteAddr(), "in community", *community)
+						}
+
+						// TODO: Send to WebRTC implementation
 					default:
 						if *verbose {
 							log.Println("Got message with unknown type", message.Type, "for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
