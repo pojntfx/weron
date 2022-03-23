@@ -1,8 +1,8 @@
 package websocket
 
 const (
-	TypeRequest   = "request"
-	TypeOffer     = "offer"
-	TypeAnswer    = "answer"
-	TypeCandidate = "candidate"
+	TypeIntroduction = "introduction"
+	TypeOffer        = "offer"
+	TypeAnswer       = "answer"
+	TypeCandidate    = "candidate"
 )

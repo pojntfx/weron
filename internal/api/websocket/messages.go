@@ -1,35 +1,61 @@
 package websocket
 
 type Message struct {
-	Type    string `json:"type"`
-	ID      string `json:"id"`
+	Type string `json:"type"`
+}
+
+type Introduction struct {
+	*Message
+
+	From string `json:"from"`
+}
+
+type Exchange struct {
+	*Message
+
+	From    string `json:"from"`
+	To      string `json:"to"`
 	Payload []byte `json:"payload"`
 }
 
-func NewRequest(id string) *Message {
-	return &Message{
-		Type: TypeRequest,
-		ID:   id,
+func NewIntroduction(from string) *Introduction {
+	return &Introduction{
+		Message: &Message{
+			Type: TypeIntroduction,
+		},
+		From: from,
 	}
 }
 
-func NewOffer(id string, payload []byte) *Message {
-	return &Message{
-		Type: TypeOffer,
-		ID:   id,
+func NewOffer(from string, to string, payload []byte) *Exchange {
+	return &Exchange{
+		Message: &Message{
+			Type: TypeOffer,
+		},
+		From:    from,
+		To:      to,
+		Payload: payload,
 	}
 }
 
-func NewAnswer(id string, payload []byte) *Message {
-	return &Message{
-		Type: TypeAnswer,
-		ID:   id,
+func NewAnswer(from string, to string, payload []byte) *Exchange {
+	return &Exchange{
+		Message: &Message{
+			Type: TypeAnswer,
+		},
+		From:    from,
+		To:      to,
+		Payload: payload,
 	}
 }
 
-func NewCandidate(id string, payload []byte) *Message {
-	return &Message{
-		Type: TypeCandidate,
-		ID:   id,
+func NewCandidate(from string, to string, payload []byte) *Exchange {
+	return &Exchange{
+		Message: &Message{
+			Type: TypeCandidate,
+		},
+		From:    from,
+		To:      to,
+		Payload: payload,
 	}
 }
