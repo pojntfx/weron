@@ -53,7 +53,11 @@ func (c *CommunitiesBroker) SubscribeToKicks(ctx context.Context, errs chan erro
 		}
 	}()
 
-	return kicks, func() error { return nil }
+	return kicks, func() error {
+		c.inputs.Unregister(rawKicks)
+
+		return nil
+	}
 }
 
 func (c *CommunitiesBroker) SubscribeToInputs(ctx context.Context, errs chan error, community string) (chan brokers.Input, func() error) {
@@ -80,7 +84,11 @@ func (c *CommunitiesBroker) SubscribeToInputs(ctx context.Context, errs chan err
 		}
 	}()
 
-	return inputs, func() error { return nil }
+	return inputs, func() error {
+		c.inputs.Unregister(rawInputs)
+
+		return nil
+	}
 }
 
 func (c *CommunitiesBroker) PublishInput(ctx context.Context, input brokers.Input, community string) error {

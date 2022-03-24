@@ -207,6 +207,7 @@ func main() {
 		}()
 
 		connectionsLock.Lock()
+		defer connectionsLock.Unlock()
 		for c := range connections {
 			for range connections[c] {
 				if err := db.RemoveClientFromCommunity(ctx, c); err != nil {
@@ -214,7 +215,6 @@ func main() {
 				}
 			}
 		}
-		connectionsLock.Unlock()
 
 		cancel()
 
