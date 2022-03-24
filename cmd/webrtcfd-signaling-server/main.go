@@ -34,9 +34,8 @@ import (
 )
 
 var (
-	errMissingCommunity   = errors.New("missing community")
-	errMissingPassword    = errors.New("missing password")
-	errMissingAPIPassword = errors.New("missing API password")
+	errMissingCommunity = errors.New("missing community")
+	errMissingPassword  = errors.New("missing password")
 
 	upgrader = websocket.Upgrader{}
 )
@@ -125,8 +124,13 @@ func main() {
 		*oidcClientID = u
 	}
 
+	managementAPIEnabled := true
 	if (strings.TrimSpace(*oidcIssuer) == "" && strings.TrimSpace(*oidcClientID) == "") && strings.TrimSpace(*apiPassword) == "" {
-		panic(errMissingAPIPassword)
+		managementAPIEnabled = false
+
+		if *verbose {
+			log.Println("API password not set, disabling management API")
+		}
 	}
 
 	var db persisters.CommunitiesPersister
@@ -260,6 +264,12 @@ func main() {
 		case http.MethodGet:
 			community := r.URL.Query().Get("community")
 			if strings.TrimSpace(community) == "" {
+				if !managementAPIEnabled {
+					rw.WriteHeader(http.StatusNotImplemented)
+
+					panic(http.StatusNotImplemented)
+				}
+
 				// List communities
 				_, p, ok := r.BasicAuth()
 				if err := authn.Validate(p); !ok || err != nil {
@@ -420,6 +430,12 @@ func main() {
 				}
 			}
 		case http.MethodPost:
+			if !managementAPIEnabled {
+				rw.WriteHeader(http.StatusNotImplemented)
+
+				panic(http.StatusNotImplemented)
+			}
+
 			// Create persistent community
 			_, p, ok := r.BasicAuth()
 			if err := authn.Validate(p); !ok || err != nil {
@@ -460,6 +476,12 @@ func main() {
 
 			return
 		case http.MethodDelete:
+			if !managementAPIEnabled {
+				rw.WriteHeader(http.StatusNotImplemented)
+
+				panic(http.StatusNotImplemented)
+			}
+
 			// Delete persistent community
 			_, p, ok := r.BasicAuth()
 			if err := authn.Validate(p); !ok || err != nil {
