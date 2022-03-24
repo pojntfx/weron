@@ -7,12 +7,14 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/pion/webrtc/v3"
 	websocketapi "github.com/pojntfx/webrtcfd/internal/api/websocket"
 	"github.com/pojntfx/webrtcfd/internal/encryption"
 )
@@ -22,6 +24,13 @@ var (
 	errMissingPassword  = errors.New("missing password")
 
 	errMissingKey = errors.New("missing key")
+
+	errInvalidTURNServerAddr  = errors.New("invalid TURN server address")
+	errMissingTURNCredentials = errors.New("missing TURN server credentials")
+)
+
+const (
+	dataChannelName = "webrtcfd"
 )
 
 func main() {
@@ -30,6 +39,8 @@ func main() {
 	community := flag.String("community", "", "ID of community to join")
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
+	stun := flag.String("stun", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers to use (in format stun:host:port)")
+	turn := flag.String("turn", "", "Comma-seperated list of TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -58,8 +69,48 @@ func main() {
 	q.Set("password", *password)
 	u.RawQuery = q.Encode()
 
+	iceServers := []webrtc.ICEServer{}
+
+	for _, stunServer := range strings.Split(*stun, ",") {
+		// Skip empty STUN server configs
+		if strings.TrimSpace(stunServer) == "" {
+			continue
+		}
+
+		iceServers = append(iceServers, webrtc.ICEServer{
+			URLs: []string{stunServer},
+		})
+	}
+
+	for _, turnServer := range strings.Split(*turn, ",") {
+		// Skip empty TURN server configs
+		if strings.TrimSpace(turnServer) == "" {
+			continue
+		}
+
+		addrParts := strings.Split(turnServer, "@")
+		if len(addrParts) < 2 {
+			panic(errInvalidTURNServerAddr)
+		}
+
+		authParts := strings.Split(addrParts[0], ":")
+		if len(addrParts) < 2 {
+			panic(errMissingTURNCredentials)
+		}
+
+		iceServers = append(iceServers, webrtc.ICEServer{
+			URLs:           []string{addrParts[1]},
+			Username:       authParts[0],
+			Credential:     authParts[1],
+			CredentialType: webrtc.ICECredentialTypePassword,
+		})
+	}
+
 	lines := make(chan []byte)
 	defer close(lines)
+
+	peers := map[string]*webrtc.PeerConnection{}
+	var peerLock sync.Mutex
 
 	for {
 		func() {
@@ -168,8 +219,48 @@ func main() {
 							log.Println("Received introduction", introduction, "from signaler with address", conn.RemoteAddr(), "in community", *community)
 						}
 
-						// TODO: Send to WebRTC implementation
+						c, err := webrtc.NewPeerConnection(webrtc.Configuration{
+							ICEServers: iceServers,
+						})
+						if err != nil {
+							panic(err)
+						}
+
+						o, err := c.CreateOffer(nil)
+						if err != nil {
+							panic(err)
+						}
+
+						// TODO: Register `OnCandidate` handler and signal the candidates
+
+						if err := c.SetLocalDescription(o); err != nil {
+							panic(err)
+						}
+
+						oj, err := json.Marshal(o)
+						if err != nil {
+							panic(err)
+						}
+
+						p, err := json.Marshal(websocketapi.NewOffer(id, introduction.Type, oj))
+						if err != nil {
+							panic(err)
+						}
+
+						peerLock.Lock()
+						peers[introduction.From] = c
+						peerLock.Unlock()
+
+						go func() {
+							lines <- p
+
+							if *verbose {
+								log.Println("Sent offer to signaler with address", *raddr, "and ID", id, "to client", introduction.From)
+							}
+						}()
 					default:
+						// TODO: Handle offers
+
 						if *verbose {
 							log.Println("Got message with unknown type", message.Type, "for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
 						}
