@@ -242,7 +242,7 @@ func main() {
 							panic(err)
 						}
 
-						p, err := json.Marshal(websocketapi.NewOffer(id, introduction.Type, oj))
+						p, err := json.Marshal(websocketapi.NewOffer(id, introduction.From, oj))
 						if err != nil {
 							panic(err)
 						}
@@ -258,8 +258,78 @@ func main() {
 								log.Println("Sent offer to signaler with address", *raddr, "and ID", id, "to client", introduction.From)
 							}
 						}()
+					case websocketapi.TypeOffer:
+						var offer websocketapi.Exchange
+						if err := json.Unmarshal(input, &offer); err != nil {
+							if *verbose {
+								log.Println("Could not unmarshal offer for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+							}
+
+							continue
+						}
+
+						if *verbose {
+							log.Println("Received offer", offer, "from signaler with address", conn.RemoteAddr(), "in community", *community)
+						}
+
+						if offer.To != id {
+							log.Println("Discarding offer", offer, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+
+							continue
+						}
+
+						c, err := webrtc.NewPeerConnection(webrtc.Configuration{
+							ICEServers: iceServers,
+						})
+						if err != nil {
+							panic(err)
+						}
+
+						peerLock.Lock()
+						peers[offer.From] = c
+						peerLock.Unlock()
+
+						var sdp webrtc.SessionDescription
+						if err := json.Unmarshal(offer.Payload, &sdp); err != nil {
+							if *verbose {
+								log.Println("Could not unmarshal SDP for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+							}
+
+							continue
+						}
+
+						if err := c.SetRemoteDescription(sdp); err != nil {
+							panic(err)
+						}
+
+						a, err := c.CreateAnswer(nil)
+						if err != nil {
+							panic(err)
+						}
+
+						if err := c.SetLocalDescription(a); err != nil {
+							panic(err)
+						}
+
+						aj, err := json.Marshal(a)
+						if err != nil {
+							panic(err)
+						}
+
+						p, err := json.Marshal(websocketapi.NewAnswer(id, offer.From, aj))
+						if err != nil {
+							panic(err)
+						}
+
+						go func() {
+							lines <- p
+
+							if *verbose {
+								log.Println("Sent answer to signaler with address", *raddr, "and ID", id, "to client", offer.From)
+							}
+						}()
 					default:
-						// TODO: Handle offers
+						// TODO: Handle answers
 
 						if *verbose {
 							log.Println("Got message with unknown type", message.Type, "for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
