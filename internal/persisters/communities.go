@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	ErrWrongUsername               = errors.New("wrong username")
 	ErrWrongPassword               = errors.New("wrong password")
 	ErrEphermalCommunitiesDisabled = errors.New("creation of ephermal communites is disabled")
 )

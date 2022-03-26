@@ -250,6 +250,12 @@ func main() {
 							}
 						})
 
+						// TODO: Register receiver
+						_, err = c.CreateDataChannel(dataChannelName, nil)
+						if err != nil {
+							panic(err)
+						}
+
 						o, err := c.CreateOffer(nil)
 						if err != nil {
 							panic(err)

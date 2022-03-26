@@ -34,7 +34,7 @@ func (a *Authn) Open(ctx context.Context) error {
 	return nil
 }
 
-func (a *Authn) Validate(token string) error {
+func (a *Authn) Validate(_, token string) error {
 	if _, err := a.verifier.Verify(a.ctx, token); err != nil {
 		return err
 	}

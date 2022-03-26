@@ -16,10 +16,6 @@ import (
 	"github.com/pojntfx/webrtcfd/internal/persisters"
 )
 
-const (
-	user = "user"
-)
-
 var (
 	errMissingCommunity   = errors.New("missing community")
 	errMissingPassword    = errors.New("missing password")
@@ -28,6 +24,7 @@ var (
 
 func main() {
 	raddr := flag.String("raddr", "https://webrtcfd.herokuapp.com/", "Remote address")
+	apiUsername := flag.String("api-username", "admin", "Username for the management API (can also be set using the API_USERNAME env variable). Not used if OIDC token is provided.")
 	apiPassword := flag.String("api-password", "", "Password (or OIDC token) for the management API (can also be set using the API_PASSWORD env variable)")
 	community := flag.String("community", "", "ID of community to create")
 	password := flag.String("password", "", "Password for community")
@@ -51,6 +48,14 @@ Flags:
 	}
 
 	flag.Parse()
+
+	if u := os.Getenv("API_USERNAME"); u != "" {
+		if *verbose {
+			log.Println("Using username from API_USERNAME env variable")
+		}
+
+		*apiUsername = u
+	}
 
 	if p := os.Getenv("API_PASSWORD"); p != "" {
 		if *verbose {
@@ -78,7 +83,7 @@ Flags:
 		if err != nil {
 			panic(err)
 		}
-		req.SetBasicAuth(user, *apiPassword)
+		req.SetBasicAuth(*apiUsername, *apiPassword)
 
 		res, err := hc.Do(req)
 		if err != nil {
@@ -138,7 +143,7 @@ Flags:
 		if err != nil {
 			panic(err)
 		}
-		req.SetBasicAuth(user, *apiPassword)
+		req.SetBasicAuth(*apiUsername, *apiPassword)
 
 		res, err := hc.Do(req)
 		if err != nil {
@@ -191,7 +196,7 @@ Flags:
 		if err != nil {
 			panic(err)
 		}
-		req.SetBasicAuth(user, *apiPassword)
+		req.SetBasicAuth(*apiUsername, *apiPassword)
 
 		res, err := hc.Do(req)
 		if err != nil {
