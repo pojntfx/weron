@@ -34,6 +34,7 @@ if [ "$1" = "go" ]; then
     CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-server -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
     CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-client -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-client DST=$DST' -d out
     CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-management -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-token -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-token DST=$DST' -d out
 
     exit 0
 fi
@@ -49,9 +50,10 @@ if [ "$1" = "gccgo" ]; then
     install /tmp/bagccgop /usr/local/bin
 
     # Build
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-server -n -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-client -n -p 'make build/webrtcfd-signaling-client DST=$DST' -d out
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-management -n -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-server -n -s 'make' -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-client -n -s 'make' -p 'make build/webrtcfd-signaling-client DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-management -n -s 'make' -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-token -n -s 'make' -p 'make build/webrtcfd-signaling-token DST=$DST' -d out
 
     exit 0
 fi
