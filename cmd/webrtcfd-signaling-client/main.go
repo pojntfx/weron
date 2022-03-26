@@ -226,12 +226,34 @@ func main() {
 							panic(err)
 						}
 
+						c.OnICECandidate(func(i *webrtc.ICECandidate) {
+							if i != nil {
+								if *verbose {
+									log.Println("Created ICE candidate", i, "for signaler with address", conn.RemoteAddr(), "in community", *community)
+								}
+
+								ij, err := json.Marshal(i)
+								if err != nil {
+									panic(err)
+								}
+
+								p, err := json.Marshal(websocketapi.NewCandidate(id, introduction.From, ij))
+								if err != nil {
+									panic(err)
+								}
+
+								lines <- p
+
+								if *verbose {
+									log.Println("Sent candidate to signaler with address", *raddr, "and ID", id, "to client", introduction.From)
+								}
+							}
+						})
+
 						o, err := c.CreateOffer(nil)
 						if err != nil {
 							panic(err)
 						}
-
-						// TODO: Register `OnCandidate` handler and signal the candidates
 
 						if err := c.SetLocalDescription(o); err != nil {
 							panic(err)
@@ -285,9 +307,29 @@ func main() {
 							panic(err)
 						}
 
-						peerLock.Lock()
-						peers[offer.From] = c
-						peerLock.Unlock()
+						c.OnICECandidate(func(i *webrtc.ICECandidate) {
+							if i != nil {
+								if *verbose {
+									log.Println("Created ICE candidate", i, "for signaler with address", conn.RemoteAddr(), "in community", *community)
+								}
+
+								ij, err := json.Marshal(i)
+								if err != nil {
+									panic(err)
+								}
+
+								p, err := json.Marshal(websocketapi.NewCandidate(id, offer.From, ij))
+								if err != nil {
+									panic(err)
+								}
+
+								lines <- p
+
+								if *verbose {
+									log.Println("Sent candidate to signaler with address", *raddr, "and ID", id, "to client", offer.From)
+								}
+							}
+						})
 
 						var sdp webrtc.SessionDescription
 						if err := json.Unmarshal(offer.Payload, &sdp); err != nil {
@@ -321,6 +363,10 @@ func main() {
 							panic(err)
 						}
 
+						peerLock.Lock()
+						peers[offer.From] = c
+						peerLock.Unlock()
+
 						go func() {
 							lines <- p
 
@@ -329,6 +375,7 @@ func main() {
 							}
 						}()
 					default:
+						// TODO: Handle candidates
 						// TODO: Handle answers
 
 						if *verbose {
