@@ -116,7 +116,7 @@ func main() {
 		func() {
 			defer func() {
 				if err := recover(); err != nil {
-					log.Println("closed connection to signaler with address", *raddr+":", err, "(wrong password?)")
+					log.Println("closed connection to signaler with address", *raddr+":", err, "(wrong username or password?)")
 				}
 
 				log.Println("Reconnecting to signaler with address", *raddr, "in", *timeout)
@@ -380,6 +380,52 @@ func main() {
 								log.Println("Sent answer to signaler with address", *raddr, "and ID", id, "to client", offer.From)
 							}
 						}()
+					case websocketapi.TypeCandidate:
+						var candidate websocketapi.Exchange
+						if err := json.Unmarshal(input, &candidate); err != nil {
+							if *verbose {
+								log.Println("Could not unmarshal candidate for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+							}
+
+							continue
+						}
+
+						if *verbose {
+							log.Println("Received candidate", candidate, "from signaler with address", conn.RemoteAddr(), "in community", *community)
+						}
+
+						if candidate.To != id {
+							log.Println("Discarding candidate", candidate, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+
+							continue
+						}
+
+						peerLock.Lock()
+						c, ok := peers[candidate.From]
+						peerLock.Unlock()
+
+						if !ok {
+							if *verbose {
+								log.Println("Could not find connection for peer", candidate.From, ", skipping")
+							}
+
+							continue
+						}
+
+						var iceCandidate webrtc.ICECandidateInit
+						if err := json.Unmarshal(candidate.Payload, &iceCandidate); err != nil {
+							if *verbose {
+								log.Println("Could not unmarshal ICE candidate for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+							}
+
+							continue
+						}
+
+						if err := c.AddICECandidate(iceCandidate); err != nil {
+							panic(err)
+						}
+
+						log.Println("Added ICE candidate from signaler with address", *raddr, "and ID", id, "from client", candidate.From)
 					default:
 						// TODO: Handle candidates
 						// TODO: Handle answers
