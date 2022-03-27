@@ -36,6 +36,7 @@ const (
 type peer struct {
 	conn       *webrtc.PeerConnection
 	candidates chan webrtc.ICECandidateInit
+	channel    *webrtc.DataChannel
 }
 
 func main() {
@@ -256,6 +257,10 @@ func main() {
 									return
 								}
 
+								if err := c.channel.Close(); err != nil {
+									panic(err)
+								}
+
 								if err := c.conn.Close(); err != nil {
 									panic(err)
 								}
@@ -263,8 +268,6 @@ func main() {
 								close(c.candidates)
 
 								delete(peers, introduction.From)
-
-								// TODO: Delete channel from map
 							}
 						})
 
@@ -301,8 +304,6 @@ func main() {
 
 						dc.OnOpen(func() {
 							log.Println("Connected to peer", introduction.From)
-
-							// TODO: Add channel to map
 
 							for {
 								time.Sleep(time.Second)
@@ -349,7 +350,7 @@ func main() {
 						}
 
 						peerLock.Lock()
-						peers[introduction.From] = &peer{c, make(chan webrtc.ICECandidateInit)}
+						peers[introduction.From] = &peer{c, make(chan webrtc.ICECandidateInit), dc}
 						peerLock.Unlock()
 
 						go func() {
@@ -405,6 +406,10 @@ func main() {
 									return
 								}
 
+								if err := c.channel.Close(); err != nil {
+									panic(err)
+								}
+
 								if err := c.conn.Close(); err != nil {
 									panic(err)
 								}
@@ -412,8 +417,6 @@ func main() {
 								close(c.candidates)
 
 								delete(peers, offer.From)
-
-								// TODO: Delete channel from map
 							}
 						})
 
@@ -444,7 +447,9 @@ func main() {
 							dc.OnOpen(func() {
 								log.Println("Connected to peer", offer.From)
 
-								// TODO: Add channel to map
+								peerLock.Lock()
+								peers[offer.From].channel = dc
+								peerLock.Unlock()
 
 								for {
 									time.Sleep(time.Second)
@@ -507,7 +512,7 @@ func main() {
 						peerLock.Lock()
 
 						candidates := make(chan webrtc.ICECandidateInit)
-						peers[offer.From] = &peer{c, candidates}
+						peers[offer.From] = &peer{c, candidates, nil}
 
 						peerLock.Unlock()
 
