@@ -426,10 +426,53 @@ func main() {
 						}
 
 						log.Println("Added ICE candidate from signaler with address", *raddr, "and ID", id, "from client", candidate.From)
-					default:
-						// TODO: Handle candidates
-						// TODO: Handle answers
+					case websocketapi.TypeAnswer:
+						var answer websocketapi.Exchange
+						if err := json.Unmarshal(input, &answer); err != nil {
+							if *verbose {
+								log.Println("Could not unmarshal answer for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+							}
 
+							continue
+						}
+
+						if *verbose {
+							log.Println("Received answer", answer, "from signaler with address", conn.RemoteAddr(), "in community", *community)
+						}
+
+						if answer.To != id {
+							log.Println("Discarding answer", answer, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+
+							continue
+						}
+
+						peerLock.Lock()
+						c, ok := peers[answer.From]
+						peerLock.Unlock()
+
+						if !ok {
+							if *verbose {
+								log.Println("Could not find connection for peer", answer.From, ", skipping")
+							}
+
+							continue
+						}
+
+						var sdp webrtc.SessionDescription
+						if err := json.Unmarshal(answer.Payload, &sdp); err != nil {
+							if *verbose {
+								log.Println("Could not unmarshal SDP for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
+							}
+
+							continue
+						}
+
+						if err := c.SetRemoteDescription(sdp); err != nil {
+							panic(err)
+						}
+
+						log.Println("Added answer from signaler with address", *raddr, "and ID", id, "from client", answer.From)
+					default:
 						if *verbose {
 							log.Println("Got message with unknown type", message.Type, "for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
 						}
