@@ -1,11 +1,10 @@
 module github.com/pojntfx/webrtcfd
 
-// +heroku goVersion go1.17
-go 1.17
+// +heroku goVersion go1.18
+go 1.18
 
 require (
 	github.com/coreos/go-oidc/v3 v3.1.0
-	github.com/dustin/go-broadcast v0.0.0-20211018055107-71439988bd91
 	github.com/friendsofgo/errors v0.9.2
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.3.0
@@ -14,6 +13,7 @@ require (
 	github.com/pion/webrtc/v3 v3.1.27
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/rubenv/sql-migrate v1.1.1
+	github.com/teivah/broadcast v0.0.7-0.20220316095729-071f20229a32
 	github.com/volatiletech/null/v8 v8.1.2
 	github.com/volatiletech/sqlboiler/v4 v4.8.6
 	github.com/volatiletech/strmangle v0.0.2

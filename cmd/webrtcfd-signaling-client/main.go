@@ -138,6 +138,12 @@ func main() {
 				if err := conn.Close(); err != nil {
 					panic(err)
 				}
+
+				for _, peer := range peers {
+					if err := peer.Close(); err != nil {
+						panic(err)
+					}
+				}
 			}()
 
 			log.Println("Connected to signaler with address", *raddr)
