@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/dustin/go-broadcast"
 	"github.com/pojntfx/webrtcfd/internal/brokers"
+	"github.com/teivah/broadcast"
 )
 
 var (
@@ -14,14 +14,14 @@ var (
 )
 
 type CommunitiesBroker struct {
-	kicks  broadcast.Broadcaster
-	inputs broadcast.Broadcaster
+	kicks  *broadcast.Relay[brokers.Kick]
+	inputs *broadcast.Relay[brokers.Input]
 }
 
 func NewCommunitiesBroker() *CommunitiesBroker {
 	return &CommunitiesBroker{
-		kicks:  broadcast.NewBroadcaster(0),
-		inputs: broadcast.NewBroadcaster(0),
+		kicks:  broadcast.NewRelay[brokers.Kick](),
+		inputs: broadcast.NewRelay[brokers.Input](),
 	}
 }
 
@@ -32,29 +32,22 @@ func (c *CommunitiesBroker) Open(ctx context.Context, brokerURL string) error {
 func (c *CommunitiesBroker) SubscribeToKicks(ctx context.Context, errs chan error) (chan brokers.Kick, func() error) {
 	kicks := make(chan brokers.Kick)
 
-	rawKicks := make(chan interface{})
-	c.kicks.Register(rawKicks)
+	l := c.kicks.Listener(1)
+	rawKicks := l.Ch()
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case rawKick := <-rawKicks:
-				kick, ok := rawKick.(brokers.Kick)
-				if !ok {
-					errs <- ErrCouldNotUnmarshalKick
-
-					return
-				}
-
+			case kick := <-rawKicks:
 				kicks <- kick
 			}
 		}
 	}()
 
 	return kicks, func() error {
-		c.inputs.Unregister(rawKicks)
+		l.Close()
 
 		return nil
 	}
@@ -63,50 +56,42 @@ func (c *CommunitiesBroker) SubscribeToKicks(ctx context.Context, errs chan erro
 func (c *CommunitiesBroker) SubscribeToInputs(ctx context.Context, errs chan error, community string) (chan brokers.Input, func() error) {
 	inputs := make(chan brokers.Input)
 
-	rawInputs := make(chan interface{})
-	c.inputs.Register(rawInputs)
+	l := c.inputs.Listener(1)
+	rawInputs := l.Ch()
 
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case rawInput := <-rawInputs:
-				input, ok := rawInput.(brokers.Input)
-				if !ok {
-					errs <- ErrCouldNotUnmarshalInput
-
-					return
-				}
-
+			case input := <-rawInputs:
 				inputs <- input
 			}
 		}
 	}()
 
 	return inputs, func() error {
-		c.inputs.Unregister(rawInputs)
+		l.Close()
 
 		return nil
 	}
 }
 
 func (c *CommunitiesBroker) PublishInput(ctx context.Context, input brokers.Input, community string) error {
-	c.inputs.Submit(input)
+	c.inputs.Broadcast(input)
 
 	return nil
 }
 
 func (c *CommunitiesBroker) PublishKick(ctx context.Context, kick brokers.Kick) error {
-	c.kicks.Submit(kick)
+	c.kicks.Broadcast(kick)
 
 	return nil
 }
 
 func (c *CommunitiesBroker) Close() error {
-	if err := c.inputs.Close(); err != nil {
-		return err
-	}
+	c.inputs.Close()
+	c.kicks.Close()
 
-	return c.kicks.Close()
+	return nil
 }
