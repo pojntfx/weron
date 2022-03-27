@@ -33,6 +33,11 @@ const (
 	dataChannelName = "webrtcfd"
 )
 
+type peer struct {
+	conn       *webrtc.PeerConnection
+	candidates chan webrtc.ICECandidateInit
+}
+
 func main() {
 	raddr := flag.String("raddr", "wss://webrtcfd.herokuapp.com/", "Remote address")
 	timeout := flag.Duration("timeout", time.Second*10, "Time to wait for connections")
@@ -109,7 +114,7 @@ func main() {
 	lines := make(chan []byte)
 	defer close(lines)
 
-	peers := map[string]*webrtc.PeerConnection{}
+	peers := map[string]*peer{}
 	var peerLock sync.Mutex
 
 	for {
@@ -140,9 +145,11 @@ func main() {
 				}
 
 				for _, peer := range peers {
-					if err := peer.Close(); err != nil {
+					if err := peer.conn.Close(); err != nil {
 						panic(err)
 					}
+
+					close(peer.candidates)
 				}
 			}()
 
@@ -249,9 +256,11 @@ func main() {
 									return
 								}
 
-								if err := c.Close(); err != nil {
+								if err := c.conn.Close(); err != nil {
 									panic(err)
 								}
+
+								close(c.candidates)
 
 								delete(peers, introduction.From)
 
@@ -340,7 +349,7 @@ func main() {
 						}
 
 						peerLock.Lock()
-						peers[introduction.From] = c
+						peers[introduction.From] = &peer{c, make(chan webrtc.ICECandidateInit)}
 						peerLock.Unlock()
 
 						go func() {
@@ -396,9 +405,11 @@ func main() {
 									return
 								}
 
-								if err := c.Close(); err != nil {
+								if err := c.conn.Close(); err != nil {
 									panic(err)
 								}
+
+								close(c.candidates)
 
 								delete(peers, offer.From)
 
@@ -494,8 +505,25 @@ func main() {
 						}
 
 						peerLock.Lock()
-						peers[offer.From] = c
+
+						candidates := make(chan webrtc.ICECandidateInit)
+						peers[offer.From] = &peer{c, candidates}
+
 						peerLock.Unlock()
+
+						go func() {
+							for candidate := range candidates {
+								if err := c.AddICECandidate(candidate); err != nil {
+									errs <- err
+
+									return
+								}
+
+								if *verbose {
+									log.Println("Added ICE candidate from signaler with address", *raddr, "and ID", id, "from client", offer.From)
+								}
+							}
+						}()
 
 						go func() {
 							lines <- p
@@ -528,23 +556,30 @@ func main() {
 
 						peerLock.Lock()
 						c, ok := peers[candidate.From]
-						peerLock.Unlock()
 
 						if !ok {
 							if *verbose {
 								log.Println("Could not find connection for peer", candidate.From, ", skipping")
 							}
 
+							peerLock.Unlock()
+
 							continue
 						}
 
-						if err := c.AddICECandidate(webrtc.ICECandidateInit{Candidate: string(candidate.Payload)}); err != nil {
-							panic(err)
-						}
+						go func() {
+							defer func() {
+								if err := recover(); err != nil {
+									if *verbose {
+										log.Println("Gathering candidates has stopped, skipping candidate")
+									}
+								}
+							}()
 
-						if *verbose {
-							log.Println("Added ICE candidate from signaler with address", *raddr, "and ID", id, "from client", candidate.From)
-						}
+							c.candidates <- webrtc.ICECandidateInit{Candidate: string(candidate.Payload)}
+						}()
+
+						peerLock.Unlock()
 					case websocketapi.TypeAnswer:
 						var answer websocketapi.Exchange
 						if err := json.Unmarshal(input, &answer); err != nil {
@@ -588,9 +623,23 @@ func main() {
 							continue
 						}
 
-						if err := c.SetRemoteDescription(sdp); err != nil {
+						if err := c.conn.SetRemoteDescription(sdp); err != nil {
 							panic(err)
 						}
+
+						go func() {
+							for candidate := range c.candidates {
+								if err := c.conn.AddICECandidate(candidate); err != nil {
+									errs <- err
+
+									return
+								}
+
+								if *verbose {
+									log.Println("Added ICE candidate from signaler with address", *raddr, "and ID", id, "from client", answer.From)
+								}
+							}
+						}()
 
 						if *verbose {
 							log.Println("Added answer from signaler with address", *raddr, "and ID", id, "from client", answer.From)
