@@ -24,12 +24,13 @@ jobs:
             flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
             cmd: ./Hydrunfile go
             dst: out/*
-          - id: gccgo
-            src: .
-            os: ghcr.io/pojntfx/bagccgop-base-sid
-            flags: -e '--privileged'
-            cmd: ./Hydrunfile gccgo
-            dst: out/*
+          # FIXME: This fails with `error: reference to undefined field or method 'HandshakeContext'`
+          # - id: gccgo
+          #   src: .
+          #   os: ghcr.io/pojntfx/bagccgop-base-sid
+          #   flags: -e '--privileged'
+          #   cmd: ./Hydrunfile gccgo
+          #   dst: out/*
 
     steps:
       - name: Maximize build space
