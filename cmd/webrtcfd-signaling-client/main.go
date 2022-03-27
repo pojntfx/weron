@@ -226,35 +226,93 @@ func main() {
 							panic(err)
 						}
 
+						c.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
+							if pcs == webrtc.PeerConnectionStateDisconnected {
+								log.Println("Disconnected from peer", introduction.From)
+
+								peerLock.Lock()
+								defer peerLock.Unlock()
+
+								c, ok := peers[introduction.From]
+
+								if !ok {
+									if *verbose {
+										log.Println("Could not find connection for peer", introduction.From, ", skipping")
+									}
+
+									return
+								}
+
+								if err := c.Close(); err != nil {
+									panic(err)
+								}
+
+								delete(peers, introduction.From)
+
+								// TODO: Delete channel from map
+							}
+						})
+
 						c.OnICECandidate(func(i *webrtc.ICECandidate) {
 							if i != nil {
 								if *verbose {
 									log.Println("Created ICE candidate", i, "for signaler with address", conn.RemoteAddr(), "in community", *community)
 								}
 
-								ij, err := json.Marshal(i)
+								p, err := json.Marshal(websocketapi.NewCandidate(id, introduction.From, []byte(i.ToJSON().Candidate)))
 								if err != nil {
 									panic(err)
 								}
 
-								p, err := json.Marshal(websocketapi.NewCandidate(id, introduction.From, ij))
-								if err != nil {
-									panic(err)
+								go func() {
+									lines <- p
+
+									if *verbose {
+										log.Println("Sent candidate to signaler with address", *raddr, "and ID", id, "to client", introduction.From)
+									}
+								}()
+							}
+						})
+
+						dc, err := c.CreateDataChannel(dataChannelName, nil)
+						if err != nil {
+							panic(err)
+						}
+						closed := false
+
+						if *verbose {
+							log.Println("Created data channel using signaler with address", conn.RemoteAddr(), "in community", *community)
+						}
+
+						dc.OnOpen(func() {
+							log.Println("Connected to peer", introduction.From)
+
+							// TODO: Add channel to map
+
+							for {
+								time.Sleep(time.Second)
+
+								if closed {
+									return
 								}
 
-								lines <- p
+								if err := dc.Send([]byte("Hello from peer " + id)); err != nil {
+									panic(err)
+								}
 
 								if *verbose {
-									log.Println("Sent candidate to signaler with address", *raddr, "and ID", id, "to client", introduction.From)
+									log.Println("Sent message to peer", introduction.From)
 								}
 							}
 						})
 
-						// TODO: Register receiver
-						_, err = c.CreateDataChannel(dataChannelName, nil)
-						if err != nil {
-							panic(err)
-						}
+						dc.OnClose(func() {
+							closed = true
+						})
+
+						dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+							log.Println("Received message from", introduction.From, string(msg.Data))
+						})
 
 						o, err := c.CreateOffer(nil)
 						if err != nil {
@@ -301,7 +359,9 @@ func main() {
 						}
 
 						if offer.To != id {
-							log.Println("Discarding offer", offer, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+							if *verbose {
+								log.Println("Discarding offer", offer, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+							}
 
 							continue
 						}
@@ -313,28 +373,86 @@ func main() {
 							panic(err)
 						}
 
+						c.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
+							if pcs == webrtc.PeerConnectionStateDisconnected {
+								log.Println("Disconnected from peer", offer.From)
+
+								peerLock.Lock()
+								defer peerLock.Unlock()
+
+								c, ok := peers[offer.From]
+
+								if !ok {
+									if *verbose {
+										log.Println("Could not find connection for peer", offer.From, ", skipping")
+									}
+
+									return
+								}
+
+								if err := c.Close(); err != nil {
+									panic(err)
+								}
+
+								delete(peers, offer.From)
+
+								// TODO: Delete channel from map
+							}
+						})
+
 						c.OnICECandidate(func(i *webrtc.ICECandidate) {
 							if i != nil {
 								if *verbose {
 									log.Println("Created ICE candidate", i, "for signaler with address", conn.RemoteAddr(), "in community", *community)
 								}
 
-								ij, err := json.Marshal(i)
+								p, err := json.Marshal(websocketapi.NewCandidate(id, offer.From, []byte(i.ToJSON().Candidate)))
 								if err != nil {
 									panic(err)
 								}
 
-								p, err := json.Marshal(websocketapi.NewCandidate(id, offer.From, ij))
-								if err != nil {
-									panic(err)
-								}
+								go func() {
+									lines <- p
 
-								lines <- p
-
-								if *verbose {
-									log.Println("Sent candidate to signaler with address", *raddr, "and ID", id, "to client", offer.From)
-								}
+									if *verbose {
+										log.Println("Sent candidate to signaler with address", *raddr, "and ID", id, "to client", offer.From)
+									}
+								}()
 							}
+						})
+
+						c.OnDataChannel(func(dc *webrtc.DataChannel) {
+							closed := false
+
+							dc.OnOpen(func() {
+								log.Println("Connected to peer", offer.From)
+
+								// TODO: Add channel to map
+
+								for {
+									time.Sleep(time.Second)
+
+									if closed {
+										return
+									}
+
+									if err := dc.Send([]byte("Hello from peer " + id)); err != nil {
+										panic(err)
+									}
+
+									if *verbose {
+										log.Println("Sent message to peer", offer.From)
+									}
+								}
+							})
+
+							dc.OnClose(func() {
+								closed = true
+							})
+
+							dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+								log.Println("Received message from", offer.From, string(msg.Data))
+							})
 						})
 
 						var sdp webrtc.SessionDescription
@@ -395,7 +513,9 @@ func main() {
 						}
 
 						if candidate.To != id {
-							log.Println("Discarding candidate", candidate, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+							if *verbose {
+								log.Println("Discarding candidate", candidate, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+							}
 
 							continue
 						}
@@ -412,20 +532,13 @@ func main() {
 							continue
 						}
 
-						var iceCandidate webrtc.ICECandidateInit
-						if err := json.Unmarshal(candidate.Payload, &iceCandidate); err != nil {
-							if *verbose {
-								log.Println("Could not unmarshal ICE candidate for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
-							}
-
-							continue
-						}
-
-						if err := c.AddICECandidate(iceCandidate); err != nil {
+						if err := c.AddICECandidate(webrtc.ICECandidateInit{Candidate: string(candidate.Payload)}); err != nil {
 							panic(err)
 						}
 
-						log.Println("Added ICE candidate from signaler with address", *raddr, "and ID", id, "from client", candidate.From)
+						if *verbose {
+							log.Println("Added ICE candidate from signaler with address", *raddr, "and ID", id, "from client", candidate.From)
+						}
 					case websocketapi.TypeAnswer:
 						var answer websocketapi.Exchange
 						if err := json.Unmarshal(input, &answer); err != nil {
@@ -441,7 +554,9 @@ func main() {
 						}
 
 						if answer.To != id {
-							log.Println("Discarding answer", answer, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+							if *verbose {
+								log.Println("Discarding answer", answer, "from signaler with address", conn.RemoteAddr(), "in community", *community, "because it is not intended for this client")
+							}
 
 							continue
 						}
@@ -471,7 +586,9 @@ func main() {
 							panic(err)
 						}
 
-						log.Println("Added answer from signaler with address", *raddr, "and ID", id, "from client", answer.From)
+						if *verbose {
+							log.Println("Added answer from signaler with address", *raddr, "and ID", id, "from client", answer.From)
+						}
 					default:
 						if *verbose {
 							log.Println("Got message with unknown type", message.Type, "for signaler with address", conn.RemoteAddr(), "in community", *community+", skipping")
