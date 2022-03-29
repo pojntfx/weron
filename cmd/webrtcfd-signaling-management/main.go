@@ -1,25 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
 
-	"github.com/pojntfx/webrtcfd/internal/persisters"
+	"github.com/pojntfx/webrtcfd/pkg/wrtcmgr"
 )
 
 var (
 	errMissingCommunity   = errors.New("missing community")
 	errMissingPassword    = errors.New("missing password")
 	errMissingAPIPassword = errors.New("missing API password")
+	errMissingAPIUsername = errors.New("missing API username")
 )
 
 func main() {
@@ -69,40 +67,30 @@ Flags:
 		panic(errMissingAPIPassword)
 	}
 
+	if strings.TrimSpace(*apiUsername) == "" {
+		panic(errMissingAPIUsername)
+	}
+
 	if flag.NArg() <= 0 {
 		flag.Usage()
 
 		return
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	manager := wrtcmgr.NewManager(
+		*raddr,
+		*apiUsername,
+		*apiPassword,
+		ctx,
+	)
+
 	switch flag.Args()[0] {
 	case "list":
-		hc := &http.Client{}
-
-		req, err := http.NewRequest(http.MethodGet, *raddr, http.NoBody)
+		c, err := manager.ListCommunities()
 		if err != nil {
-			panic(err)
-		}
-		req.SetBasicAuth(*apiUsername, *apiPassword)
-
-		res, err := hc.Do(req)
-		if err != nil {
-			panic(err)
-		}
-		if res.Body != nil {
-			defer res.Body.Close()
-		}
-		if res.StatusCode != http.StatusOK {
-			panic(res.Status)
-		}
-
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			panic(err)
-		}
-
-		c := []persisters.Community{}
-		if err := json.Unmarshal(body, &c); err != nil {
 			panic(err)
 		}
 
@@ -127,42 +115,8 @@ Flags:
 			panic(errMissingPassword)
 		}
 
-		hc := &http.Client{}
-
-		u, err := url.Parse(*raddr)
+		c, err := manager.CreatePersistentCommunity(*community, *password)
 		if err != nil {
-			panic(err)
-		}
-
-		q := u.Query()
-		q.Set("community", *community)
-		q.Set("password", *password)
-		u.RawQuery = q.Encode()
-
-		req, err := http.NewRequest(http.MethodPost, u.String(), http.NoBody)
-		if err != nil {
-			panic(err)
-		}
-		req.SetBasicAuth(*apiUsername, *apiPassword)
-
-		res, err := hc.Do(req)
-		if err != nil {
-			panic(err)
-		}
-		if res.Body != nil {
-			defer res.Body.Close()
-		}
-		if res.StatusCode != http.StatusOK {
-			panic(res.Status)
-		}
-
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			panic(err)
-		}
-
-		c := persisters.Community{}
-		if err := json.Unmarshal(body, &c); err != nil {
 			panic(err)
 		}
 
@@ -181,32 +135,8 @@ Flags:
 			panic(errMissingCommunity)
 		}
 
-		hc := &http.Client{}
-
-		u, err := url.Parse(*raddr)
-		if err != nil {
+		if err := manager.DeleteCommunity(*community); err != nil {
 			panic(err)
-		}
-
-		q := u.Query()
-		q.Set("community", *community)
-		u.RawQuery = q.Encode()
-
-		req, err := http.NewRequest(http.MethodDelete, u.String(), http.NoBody)
-		if err != nil {
-			panic(err)
-		}
-		req.SetBasicAuth(*apiUsername, *apiPassword)
-
-		res, err := hc.Do(req)
-		if err != nil {
-			panic(err)
-		}
-		if res.Body != nil {
-			defer res.Body.Close()
-		}
-		if res.StatusCode != http.StatusOK {
-			panic(res.Status)
 		}
 	default:
 		panic("unknown command")
