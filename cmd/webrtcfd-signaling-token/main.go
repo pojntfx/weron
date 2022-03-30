@@ -6,14 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/pkg/browser"
-	"golang.org/x/oauth2"
+	"github.com/pojntfx/webrtcfd/pkg/wrtctkn"
 )
 
 var (
@@ -61,81 +58,29 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	provider, err := oidc.NewProvider(ctx, *oidcIssuer)
-	if err != nil {
-		panic(err)
-	}
+	manager := wrtctkn.NewTokenManager(
+		*oidcIssuer,
+		*oidcClientID,
+		*oidcRedirectURL,
 
-	config := &oauth2.Config{
-		ClientID:    *oidcClientID,
-		RedirectURL: *oidcRedirectURL,
-		Endpoint:    provider.Endpoint(),
-		Scopes:      []string{oidc.ScopeOpenID},
-	}
-
-	u, err := url.Parse(*oidcRedirectURL)
-	if err != nil {
-		panic(err)
-	}
-
-	srv := &http.Server{Addr: u.Host}
-
-	tokens := make(chan string)
-	errs := make(chan error)
-
-	srv.Handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rw.Header().Set("Content-Type", "text/html")
-
-		if _, err := fmt.Fprint(rw, `<!DOCTYPE html><script>window.close()</script>`); err != nil {
-			panic(err)
-		}
-
-		oauth2Token, err := config.Exchange(context.Background(), r.URL.Query().Get("code"))
-		if err != nil {
-			errs <- err
-
-			return
-		}
-
-		tokens <- oauth2Token.Extra("id_token").(string)
-	})
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			if err == http.ErrServerClosed {
-				close(errs)
-
-				return
+		func(s string) error {
+			if err := browser.OpenURL(s); err != nil {
+				log.Printf(`Could not open browser, please open the following URL in your browser manually to authorize:
+%v`, s)
 			}
 
-			errs <- err
+			return nil
+		},
 
-			return
-		}
-	}()
-	defer func() {
-		if err := srv.Shutdown(ctx); err != nil {
-			panic(err)
-		}
-	}()
+		ctx,
+	)
 
-	authURL := config.AuthCodeURL(*oidcRedirectURL)
-	browser.Stdout = os.Stderr // Prevent browser output from appearing in `stdout`
-	if err := browser.OpenURL(authURL); err != nil {
-		log.Printf(`Could not open browser, please open the following URL in your browser manually to authorize:
-%v`, authURL)
+	token, err := manager.GetToken()
+	if err != nil {
+		panic(err)
 	}
 
-	for {
-		select {
-		case err := <-errs:
-			panic(err)
-		case token := <-tokens:
-			log.Println("Successfully got the following OIDC access token:")
+	log.Println("Successfully got the following OIDC access token:")
 
-			fmt.Println(token)
-
-			return
-		}
-	}
+	fmt.Println(token)
 }
