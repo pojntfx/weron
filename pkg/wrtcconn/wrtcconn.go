@@ -126,14 +126,14 @@ func (a *Adapter) Open() (chan string, error) {
 		}
 	}
 
-	peers := map[string]*peer{}
-	var peerLock sync.Mutex
-
 	go func() {
 		for {
 			if a.done {
 				return
 			}
+
+			peers := map[string]*peer{}
+			var peerLock sync.Mutex
 
 			func() {
 				defer func() {
@@ -167,7 +167,16 @@ func (a *Adapter) Open() (chan string, error) {
 						panic(err)
 					}
 
+					peerLock.Lock()
+					defer peerLock.Unlock()
+
 					for _, peer := range peers {
+						if peer.channel != nil {
+							if err := peer.channel.Close(); err != nil {
+								panic(err)
+							}
+						}
+
 						if err := peer.conn.Close(); err != nil {
 							panic(err)
 						}
