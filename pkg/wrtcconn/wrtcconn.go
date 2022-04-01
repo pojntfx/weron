@@ -38,6 +38,11 @@ type peerWithID struct {
 	id string
 }
 
+type Peer struct {
+	ID   string
+	Conn io.ReadWriteCloser
+}
+
 type AdapterConfig struct {
 	Timeout time.Duration
 	Verbose bool
@@ -52,8 +57,9 @@ type Adapter struct {
 
 	cancel context.CancelFunc
 	done   bool
-	peers  chan *peerWithID
 	lines  chan []byte
+
+	peers chan *Peer
 }
 
 func NewAdapter(
@@ -73,7 +79,7 @@ func NewAdapter(
 		ctx:      ictx,
 
 		cancel: cancel,
-		peers:  make(chan *peerWithID),
+		peers:  make(chan *Peer),
 		lines:  make(chan []byte),
 	}
 }
@@ -332,7 +338,7 @@ func (a *Adapter) Open() (chan string, error) {
 									log.Println("Connected to peer", introduction.From)
 								}
 
-								a.peers <- &peerWithID{pr, introduction.From}
+								a.peers <- &Peer{introduction.From, newDataChannelReadWriteCloser(pr.channel)}
 							})
 
 							o, err := c.CreateOffer(nil)
@@ -456,7 +462,7 @@ func (a *Adapter) Open() (chan string, error) {
 
 									peerLock.Lock()
 									peers[offer.From].channel = dc
-									a.peers <- &peerWithID{peers[offer.From], offer.From}
+									a.peers <- &Peer{offer.From, newDataChannelReadWriteCloser(dc)}
 									peerLock.Unlock()
 								})
 							})
@@ -673,10 +679,8 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
-func (a *Adapter) Accept() (string, io.ReadWriteCloser, error) {
-	p := <-a.peers
-
-	return p.id, newDataChannelReadWriteCloser(p.channel), nil
+func (a *Adapter) Accept() chan *Peer {
+	return a.peers
 }
 
 type dataChannelReadWriteCloser struct {
