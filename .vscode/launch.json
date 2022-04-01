@@ -7,7 +7,7 @@
       "request": "launch",
       "console": "integratedTerminal",
       "mode": "auto",
-      "program": "cmd/webrtcfd-signaling-client/main.go",
+      "program": "cmd/webrtcfd-signaling-chat/main.go",
       "args": [
         "-community",
         "test",

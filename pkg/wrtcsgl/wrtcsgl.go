@@ -357,11 +357,11 @@ func (s *Signaler) Open() error {
 						log.Println("Sending ping to client with address", raddr, "in community", community)
 					}
 
-					if err := conn.SetWriteDeadline(time.Now().Add(s.config.Heartbeat)); err != nil {
+					if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 						panic(err)
 					}
 
-					if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					if err := conn.SetWriteDeadline(time.Now().Add(s.config.Heartbeat)); err != nil {
 						panic(err)
 					}
 				}

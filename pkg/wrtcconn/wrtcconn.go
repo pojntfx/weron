@@ -185,6 +185,13 @@ func (a *Adapter) Open() (chan string, error) {
 					}
 				}()
 
+				if err := conn.SetReadDeadline(time.Now().Add(a.config.Timeout)); err != nil {
+					panic(err)
+				}
+				conn.SetPongHandler(func(string) error {
+					return conn.SetReadDeadline(time.Now().Add(a.config.Timeout))
+				})
+
 				if a.config.Verbose {
 					log.Println("Connected to signaler with address", u.String())
 				}
@@ -227,6 +234,9 @@ func (a *Adapter) Open() (chan string, error) {
 						log.Println("Introduced to signaler with address", u.String(), "and ID", id)
 					}
 				}()
+
+				pings := time.NewTicker(a.config.Timeout / 2)
+				defer pings.Stop()
 
 				for {
 					select {
@@ -655,7 +665,6 @@ func (a *Adapter) Open() (chan string, error) {
 
 							continue
 						}
-
 					case line := <-a.lines:
 						line, err = encryption.Encrypt(line, []byte(a.key))
 						if err != nil {
@@ -667,6 +676,22 @@ func (a *Adapter) Open() (chan string, error) {
 						}
 
 						if err := conn.WriteMessage(websocket.TextMessage, line); err != nil {
+							panic(err)
+						}
+
+						if err := conn.SetWriteDeadline(time.Now().Add(a.config.Timeout)); err != nil {
+							panic(err)
+						}
+					case <-pings.C:
+						if a.config.Verbose {
+							log.Println("Sending ping to signaler with address", conn.RemoteAddr(), "in community", community)
+						}
+
+						if err := conn.SetWriteDeadline(time.Now().Add(a.config.Timeout)); err != nil {
+							panic(err)
+						}
+
+						if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 							panic(err)
 						}
 					}
