@@ -683,25 +683,40 @@ func (a *Adapter) Accept() chan *Peer {
 	return a.peers
 }
 
+type message struct {
+	data []byte
+	err  error
+}
+
 type dataChannelReadWriteCloser struct {
 	dc   *webrtc.DataChannel
-	msgs chan []byte
+	msgs chan message
 }
 
 func newDataChannelReadWriteCloser(
 	dc *webrtc.DataChannel,
 ) *dataChannelReadWriteCloser {
-	d := &dataChannelReadWriteCloser{dc, make(chan []byte)}
+	d := &dataChannelReadWriteCloser{dc, make(chan message)}
 
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		d.msgs <- msg.Data
+		d.msgs <- message{msg.Data, nil}
+	})
+
+	dc.OnClose(func() {
+		d.msgs <- message{[]byte{}, io.EOF}
 	})
 
 	return d
 }
 
 func (d *dataChannelReadWriteCloser) Read(p []byte) (n int, err error) {
-	return copy(p, <-d.msgs), nil
+	msg := <-d.msgs
+
+	if msg.err != nil {
+		return -1, msg.err
+	}
+
+	return copy(p, msg.data), nil
 }
 func (d *dataChannelReadWriteCloser) Write(p []byte) (n int, err error) {
 	if err := d.dc.Send(p); err != nil {
