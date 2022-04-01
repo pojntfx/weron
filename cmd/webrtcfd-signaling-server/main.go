@@ -118,7 +118,7 @@ func main() {
 	}
 
 	signaler := wrtcsgl.NewSignaler(
-		*laddr,
+		addr.String(),
 		*postgresURL,
 		*redisURL,
 		&wrtcsgl.SignalerConfig{
