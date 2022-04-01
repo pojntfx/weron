@@ -93,69 +93,59 @@ func main() {
 	}()
 
 	id := ""
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case id = <-ids:
-				log.Println("Connected as", id)
-			}
-		}
-	}()
-
 	for {
-		peer, conn, err := adapter.Accept()
-		if err != nil {
-			log.Println("Could not accept peer, continuing")
+		select {
+		case <-ctx.Done():
+			return
+		case id = <-ids:
+			log.Println("Connected as", id)
+		case peer := <-adapter.Accept():
+			log.Println("Peer connected", peer.ID)
 
-			continue
-		}
+			go func() {
+				defer func() {
+					log.Println("Peer disconnected", peer.ID)
+				}()
 
-		go func() {
-			log.Println("Peer connected", peer)
-			defer func() {
-				log.Println("Peer disconnected", peer)
-			}()
-
-			for {
-				buf := make([]byte, 1024)
-				n, err := conn.Read(buf)
-				if err != nil {
-					if err := conn.Close(); err != nil {
-						return
-					}
-
-					return
-				}
-
-				log.Println("Received message from peer", peer, "with length", n, string(buf))
-			}
-		}()
-
-		go func() {
-			defer func() {
-				log.Println("Peer disconnected", peer)
-			}()
-
-			ticker := time.NewTicker(time.Second)
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					n, err := conn.Write([]byte("Hello from " + id + "!"))
+				for {
+					buf := make([]byte, 1024)
+					n, err := peer.Conn.Read(buf)
 					if err != nil {
-						if err := conn.Close(); err != nil {
+						if err := peer.Conn.Close(); err != nil {
 							return
 						}
 
 						return
 					}
 
-					log.Println("Sent message to peer", peer, "with length", n)
+					log.Println("Received message from peer", peer.ID, "with length", n, string(buf))
 				}
-			}
-		}()
+			}()
+
+			go func() {
+				defer func() {
+					log.Println("Peer disconnected", peer.ID)
+				}()
+
+				ticker := time.NewTicker(time.Second)
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						n, err := peer.Conn.Write([]byte("Hello from " + id + "!"))
+						if err != nil {
+							if err := peer.Conn.Close(); err != nil {
+								return
+							}
+
+							return
+						}
+
+						log.Println("Sent message to peer", peer.ID, "with length", n)
+					}
+				}
+			}()
+		}
 	}
 }
