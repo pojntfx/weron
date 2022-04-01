@@ -1,16 +1,19 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
-	"log"
+	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
+	"github.com/teivah/broadcast"
 )
 
 var (
@@ -59,7 +62,7 @@ func main() {
 		panic(errMissingKey)
 	}
 
-	log.Println("Connecting to signaler with address", *raddr)
+	fmt.Printf("\r.%v\n", *raddr)
 
 	u, err := url.Parse(*raddr)
 	if err != nil {
@@ -92,58 +95,50 @@ func main() {
 		}
 	}()
 
+	lines := broadcast.NewRelay[[]byte]()
+	go func() {
+		reader := bufio.NewScanner(os.Stdin)
+
+		for reader.Scan() {
+			lines.Broadcast([]byte(reader.Text() + "\n"))
+		}
+	}()
+
 	id := ""
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case id = <-ids:
-			log.Println("Connected as", id)
+			fmt.Printf("\r%v> ", id)
 		case peer := <-adapter.Accept():
-			log.Println("Peer connected", peer.ID)
+			fmt.Printf("\r+%v\n", peer.ID)
+			fmt.Printf("\r%v> ", id)
+
+			l := lines.Listener(0)
 
 			go func() {
 				defer func() {
-					log.Println("Peer disconnected", peer.ID)
+					fmt.Printf("\r-%v\n", peer.ID)
+					fmt.Printf("\r%v> ", id)
+
+					l.Close()
 				}()
 
-				for {
-					buf := make([]byte, 1024)
-					n, err := peer.Conn.Read(buf)
-					if err != nil {
-						if err := peer.Conn.Close(); err != nil {
-							return
-						}
-
-						return
-					}
-
-					log.Println("Received message from peer", peer.ID, "with length", n, string(buf))
+				reader := bufio.NewScanner(peer.Conn)
+				for reader.Scan() {
+					fmt.Printf("\r%v: %v\n", peer.ID, reader.Text())
+					fmt.Printf("\r%v> ", id)
 				}
 			}()
 
 			go func() {
-				defer func() {
-					log.Println("Peer disconnected", peer.ID)
-				}()
-
-				ticker := time.NewTicker(time.Second)
-				for {
-					select {
-					case <-ctx.Done():
+				for msg := range l.Ch() {
+					if _, err := peer.Conn.Write(msg); err != nil {
 						return
-					case <-ticker.C:
-						n, err := peer.Conn.Write([]byte("Hello from " + id + "!"))
-						if err != nil {
-							if err := peer.Conn.Close(); err != nil {
-								return
-							}
-
-							return
-						}
-
-						log.Println("Sent message to peer", peer.ID, "with length", n)
 					}
+
+					fmt.Printf("\r%v> ", id)
 				}
 			}()
 		}
