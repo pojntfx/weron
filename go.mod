@@ -13,7 +13,9 @@ require (
 	github.com/pion/webrtc/v3 v3.1.27
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/rubenv/sql-migrate v1.1.1
+	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/teivah/broadcast v0.0.7-0.20220316095729-071f20229a32
+	github.com/vishvananda/netlink v1.1.0
 	github.com/volatiletech/null/v8 v8.1.2
 	github.com/volatiletech/sqlboiler/v4 v4.8.6
 	github.com/volatiletech/strmangle v0.0.2
@@ -44,6 +46,7 @@ require (
 	github.com/pion/turn/v2 v2.0.8 // indirect
 	github.com/pion/udp v0.1.1 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
+	github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df // indirect
 	github.com/volatiletech/inflect v0.0.1 // indirect
 	github.com/volatiletech/randomize v0.0.1 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
