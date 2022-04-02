@@ -17,10 +17,6 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-const (
-	broadcastMAC = "ff:ff:ff:ff:ff:ff"
-)
-
 var (
 	errMissingCommunity = errors.New("missing community")
 	errMissingPassword  = errors.New("missing password")
@@ -32,7 +28,9 @@ var (
 )
 
 const (
-	dataChannelName = "webrtcfd"
+	dataChannelName      = "webrtcfd"
+	broadcastMAC         = "ff:ff:ff:ff:ff:ff"
+	ethernetHeaderLength = 14
 )
 
 type peer struct {
@@ -131,7 +129,7 @@ func main() {
 
 	go func() {
 		for {
-			buf := make([]byte, link.Attrs().MTU)
+			buf := make([]byte, link.Attrs().MTU+ethernetHeaderLength)
 
 			if _, err := tap.Read(buf); err != nil {
 				if *verbose {
@@ -193,7 +191,7 @@ func main() {
 				peersLock.Unlock()
 
 				for {
-					buf := make([]byte, link.Attrs().MTU)
+					buf := make([]byte, link.Attrs().MTU+ethernetHeaderLength)
 
 					if _, err := peer.Conn.Read(buf); err != nil {
 						return
