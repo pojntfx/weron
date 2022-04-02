@@ -73,29 +73,6 @@ func main() {
 	q.Set("password", *password)
 	u.RawQuery = q.Encode()
 
-	adapter := wrtcconn.NewAdapter(
-		u.String(),
-		*key,
-		strings.Split(*ice, ","),
-		&wrtcconn.AdapterConfig{
-			Timeout: *timeout,
-			Verbose: *verbose,
-		},
-		ctx,
-	)
-
-	log.Println("Connecting to signaler", *raddr)
-
-	ids, err := adapter.Open()
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := adapter.Close(); err != nil {
-			panic(err)
-		}
-	}()
-
 	tap, err := water.New(water.Config{
 		DeviceType: water.TAP,
 		PlatformSpecificParams: water.PlatformSpecificParams{
@@ -120,9 +97,29 @@ func main() {
 		panic(err)
 	}
 
-	if err := netlink.LinkSetUp(link); err != nil {
+	adapter := wrtcconn.NewAdapter(
+		u.String(),
+		*key,
+		strings.Split(*ice, ","),
+		&wrtcconn.AdapterConfig{
+			Timeout: *timeout,
+			Verbose: *verbose,
+			ID:      link.Attrs().HardwareAddr.String(),
+		},
+		ctx,
+	)
+
+	log.Println("Connecting to signaler", *raddr)
+
+	ids, err := adapter.Open()
+	if err != nil {
 		panic(err)
 	}
+	defer func() {
+		if err := adapter.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	lines := broadcast.NewRelay[[]byte]()
 	go func() {
@@ -143,6 +140,10 @@ func main() {
 			return
 		case id := <-ids:
 			log.Println("Connected to signaler as", id)
+
+			if err := netlink.LinkSetUp(link); err != nil {
+				panic(err)
+			}
 		case peer := <-adapter.Accept():
 			log.Println("Connected to peer", peer.ID)
 
