@@ -7,13 +7,18 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/mdlayher/ethernet"
 	"github.com/pion/webrtc/v3"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/songgao/water"
-	"github.com/teivah/broadcast"
 	"github.com/vishvananda/netlink"
+)
+
+const (
+	broadcastMAC = "ff:ff:ff:ff:ff:ff"
 )
 
 var (
@@ -121,16 +126,43 @@ func main() {
 		}
 	}()
 
-	lines := broadcast.NewRelay[[]byte]()
+	peers := map[string]*wrtcconn.Peer{}
+	var peersLock sync.Mutex
+
 	go func() {
 		for {
 			buf := make([]byte, link.Attrs().MTU)
 
 			if _, err := tap.Read(buf); err != nil {
-				return
+				if *verbose {
+					log.Println("Could not read from TAP device, skipping")
+				}
+
+				continue
 			}
 
-			lines.Broadcast([]byte(buf))
+			var frame ethernet.Frame
+			if err := frame.UnmarshalBinary(buf); err != nil {
+				if *verbose {
+					log.Println("Could not unmarshal frame, skipping")
+				}
+
+				continue
+			}
+
+			peersLock.Lock()
+			for _, peer := range peers {
+				if dst := frame.Destination.String(); dst == broadcastMAC || dst == peer.ID {
+					if _, err := peer.Conn.Write(buf); err != nil {
+						if *verbose {
+							log.Println("Could not write to peer, skipping")
+						}
+
+						continue
+					}
+				}
+			}
+			peersLock.Unlock()
 		}
 	}()
 
@@ -147,12 +179,18 @@ func main() {
 		case peer := <-adapter.Accept():
 			log.Println("Connected to peer", peer.ID)
 
-			l := lines.Listener(0)
-
 			go func() {
 				defer func() {
 					log.Println("Disconnected from peer", peer.ID)
+
+					peersLock.Lock()
+					delete(peers, peer.ID)
+					peersLock.Unlock()
 				}()
+
+				peersLock.Lock()
+				peers[peer.ID] = peer
+				peersLock.Unlock()
 
 				for {
 					buf := make([]byte, link.Attrs().MTU)
@@ -162,15 +200,11 @@ func main() {
 					}
 
 					if _, err := tap.Write(buf); err != nil {
-						return
-					}
-				}
-			}()
+						if *verbose {
+							log.Println("Could not write to TAP device, skipping")
+						}
 
-			go func() {
-				for msg := range l.Ch() {
-					if _, err := peer.Conn.Write(msg); err != nil {
-						return
+						continue
 					}
 				}
 			}()
