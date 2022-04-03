@@ -7,7 +7,7 @@
       "request": "launch",
       "console": "integratedTerminal",
       "mode": "auto",
-      "program": "cmd/webrtcfd-signaling-chat/main.go",
+      "program": "cmd/wrtcchat/main.go",
       "args": [
         "-community",
         "test",
@@ -26,7 +26,7 @@
       "request": "launch",
       "console": "integratedTerminal",
       "mode": "auto",
-      "program": "cmd/webrtcfd-signaling-server/main.go",
+      "program": "cmd/wrtcsgl/main.go",
       "args": ["-verbose", "-cleanup", "-api-password", "asdf"]
     }
   ]

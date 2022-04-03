@@ -5,7 +5,7 @@ OUTPUT_DIR ?= out
 DST ?=
 
 # Private variables
-obj = webrtcfd-signaling-server webrtcfd-signaling-chat webrtcfd-signaling-management webrtcfd-signaling-token
+obj = wrtcsgl wrtcchat wrtcmgr wrtctkn wrtceth
 all: $(addprefix build/,$(obj))
 
 # Build
