@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pion/webrtc/v3"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/teivah/broadcast"
 )
@@ -25,16 +24,6 @@ var (
 	errInvalidTURNServerAddr  = errors.New("invalid TURN server address")
 	errMissingTURNCredentials = errors.New("missing TURN server credentials")
 )
-
-const (
-	dataChannelName = "webrtcfd"
-)
-
-type peer struct {
-	conn       *webrtc.PeerConnection
-	candidates chan webrtc.ICECandidateInit
-	channel    *webrtc.DataChannel
-}
 
 func main() {
 	raddr := flag.String("raddr", "wss://webrtcfd.herokuapp.com/", "Remote address")
