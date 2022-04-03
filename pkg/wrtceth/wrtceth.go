@@ -3,14 +3,12 @@ package wrtceth
 import (
 	"context"
 	"log"
-	"net"
 	"strings"
 	"sync"
 
 	"github.com/mdlayher/ethernet"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/songgao/water"
-	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -37,7 +35,7 @@ type Adapter struct {
 	cancel  context.CancelFunc
 	adapter *wrtcconn.Adapter
 	tap     *water.Interface
-	link    netlink.Link
+	mtu     int
 	ids     chan string
 }
 
@@ -65,32 +63,15 @@ func NewAdapter(
 func (a *Adapter) Open() error {
 	var err error
 	a.tap, err = water.New(water.Config{
-		DeviceType: water.TAP,
-		PlatformSpecificParams: water.PlatformSpecificParams{
-			Name: a.config.Device,
-		},
+		DeviceType:             water.TAP,
+		PlatformSpecificParams: getPlatformSpecificParams(a.config.Device),
 	})
 	if err != nil {
 		return err
 	}
 
-	a.link, err = netlink.LinkByName(a.tap.Name())
+	a.config.AdapterConfig.ID, err = setMACAddress(a.tap.Name(), a.config.ID)
 	if err != nil {
-		return err
-	}
-
-	var mac net.HardwareAddr
-	if strings.TrimSpace(a.config.ID) == "" {
-		mac = a.link.Attrs().HardwareAddr
-	} else {
-		mac, err = net.ParseMAC(a.config.ID)
-		if err != nil {
-			return err
-		}
-	}
-	a.config.AdapterConfig.ID = mac.String()
-
-	if err := netlink.LinkSetHardwareAddr(a.link, mac); err != nil {
 		return err
 	}
 
@@ -103,6 +84,11 @@ func (a *Adapter) Open() error {
 	)
 
 	a.ids, err = a.adapter.Open()
+	if err != nil {
+		return err
+	}
+
+	a.mtu, err = getMTU(a.tap.Name())
 
 	return err
 }
@@ -121,7 +107,7 @@ func (a *Adapter) Wait() error {
 
 	go func() {
 		for {
-			buf := make([]byte, a.link.Attrs().MTU+ethernetHeaderLength)
+			buf := make([]byte, a.mtu+ethernetHeaderLength)
 
 			if _, err := a.tap.Read(buf); err != nil {
 				if a.config.Verbose {
@@ -166,7 +152,7 @@ func (a *Adapter) Wait() error {
 				a.config.OnSignalerConnect(id)
 			}
 
-			if err := netlink.LinkSetUp(a.link); err != nil {
+			if err := setLinkUp(a.tap.Name()); err != nil {
 				return err
 			}
 		case peer := <-a.adapter.Accept():
@@ -190,7 +176,7 @@ func (a *Adapter) Wait() error {
 				peersLock.Unlock()
 
 				for {
-					buf := make([]byte, a.link.Attrs().MTU+ethernetHeaderLength)
+					buf := make([]byte, a.mtu+ethernetHeaderLength)
 
 					if _, err := peer.Conn.Read(buf); err != nil {
 						return
