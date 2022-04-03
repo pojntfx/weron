@@ -31,10 +31,11 @@ if [ "$1" = "go" ]; then
     make depend
 
     # Build
-    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-server -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
-    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-chat -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-chat DST=$DST' -d out
-    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-management -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
-    CGO_ENABLED=0 bagop -j "$(nproc)" -b webrtcfd-signaling-token -x '(android/*|ios/*)' -p 'make build/webrtcfd-signaling-token DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtcsgl -x '(android/*|ios/*)' -p 'make build/wrtcsgl DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtcchat -x '(android/*|ios/*)' -p 'make build/wrtcchat DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtcmgr -x '(android/*|ios/*)' -p 'make build/wrtcmgr DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtctkn -x '(android/*|ios/*)' -p 'make build/wrtctkn DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtceth -x '(android/*|ios/*)' -p 'make build/wrtceth DST=$DST' -d out
 
     exit 0
 fi
@@ -50,10 +51,11 @@ if [ "$1" = "gccgo" ]; then
     install /tmp/bagccgop /usr/local/bin
 
     # Build
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-server -n -s 'make' -p 'make build/webrtcfd-signaling-server DST=$DST' -d out
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-chat -n -s 'make' -p 'make build/webrtcfd-signaling-chat DST=$DST' -d out
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-management -n -s 'make' -p 'make build/webrtcfd-signaling-management DST=$DST' -d out
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b webrtcfd-signaling-token -n -s 'make' -p 'make build/webrtcfd-signaling-token DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b wrtcsgl -n -s 'make' -p 'make build/wrtcsgl DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b wrtcchat -n -s 'make' -p 'make build/wrtcchat DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b wrtcmgr -n -s 'make' -p 'make build/wrtcmgr DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b wrtctkn -n -s 'make' -p 'make build/wrtctkn DST=$DST' -d out
+    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b wrtceth -n -s 'make' -p 'make build/wrtceth DST=$DST' -d out
 
     exit 0
 fi
