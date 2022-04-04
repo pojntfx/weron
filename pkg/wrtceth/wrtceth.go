@@ -6,7 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mdlayher/ethernet"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/songgao/water"
 )
@@ -117,8 +118,8 @@ func (a *Adapter) Wait() error {
 				continue
 			}
 
-			var frame ethernet.Frame
-			if err := frame.UnmarshalBinary(buf); err != nil {
+			var frame layers.Ethernet
+			if err := frame.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
 				if a.config.Verbose {
 					log.Println("Could not unmarshal frame, skipping")
 				}
@@ -129,7 +130,7 @@ func (a *Adapter) Wait() error {
 			peersLock.Lock()
 			for _, peer := range peers {
 				// Send if broadcast, multicast or matching destination MAC
-				if dst := frame.Destination.String(); dst == broadcastMAC || frame.Destination[1]&0b01 == 1 || dst == peer.ID {
+				if dst := frame.DstMAC.String(); dst == broadcastMAC || frame.DstMAC[1]&0b01 == 1 || dst == peer.ID {
 					if _, err := peer.Conn.Write(buf); err != nil {
 						if a.config.Verbose {
 							log.Println("Could not write to peer, skipping")
