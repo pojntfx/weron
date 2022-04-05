@@ -35,7 +35,7 @@ if [ "$1" = "go" ]; then
     CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtcchat -x '(android/*|ios/*)' -p 'make build/wrtcchat DST=$DST' -d out
     CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtcmgr -x '(android/*|ios/*)' -p 'make build/wrtcmgr DST=$DST' -d out
     CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtctkn -x '(android/*|ios/*)' -p 'make build/wrtctkn DST=$DST' -d out
-    CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtceth -x '(android/*|ios/*)' -p 'make build/wrtceth DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b wrtceth -x '(android/*|ios/*|plan9/*)' -p 'make build/wrtceth DST=$DST' -d out
 
     exit 0
 fi

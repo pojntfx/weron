@@ -7,9 +7,7 @@ import (
 )
 
 func getPlatformSpecificParams(name string) water.PlatformSpecificParams {
-	return water.PlatformSpecificParams{
-		InterfaceName: name,
-	}
+	return water.PlatformSpecificParams{}
 }
 
 func setMACAddress(linkName string, hwaddr string) (string, error) {
