@@ -31,6 +31,7 @@ type peer struct {
 	conn       *webrtc.PeerConnection
 	candidates chan webrtc.ICECandidateInit
 	channel    *webrtc.DataChannel
+	iid        string
 }
 
 type peerWithID struct {
@@ -284,6 +285,8 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Println("Received introduction", introduction, "from signaler with address", conn.RemoteAddr(), "in community", community)
 							}
 
+							iid := uuid.NewString()
+
 							c, err := webrtc.NewPeerConnection(webrtc.Configuration{
 								ICEServers: iceServers,
 							})
@@ -305,6 +308,14 @@ func (a *Adapter) Open() (chan string, error) {
 									if !ok {
 										if a.config.Verbose {
 											log.Println("Could not find connection for peer", introduction.From, ", skipping")
+										}
+
+										return
+									}
+
+									if c.iid == iid {
+										if a.config.Verbose {
+											log.Println("Peer", introduction.From, ", already rejoined, not disconnecting")
 										}
 
 										return
@@ -354,7 +365,7 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Println("Created data channel using signaler with address", conn.RemoteAddr(), "in community", community)
 							}
 
-							pr := &peer{c, make(chan webrtc.ICECandidateInit), dc}
+							pr := &peer{c, make(chan webrtc.ICECandidateInit), dc, iid}
 
 							dc.OnOpen(func() {
 								if a.config.Verbose {
@@ -384,6 +395,23 @@ func (a *Adapter) Open() (chan string, error) {
 							}
 
 							peerLock.Lock()
+							old, ok := peers[introduction.From]
+							if ok {
+								// Disconnect the old peer
+								if a.config.Verbose {
+									log.Println("Disconnected from peer", introduction.From)
+								}
+
+								if err := old.channel.Close(); err != nil {
+									panic(err)
+								}
+
+								if err := old.conn.Close(); err != nil {
+									panic(err)
+								}
+
+								close(old.candidates)
+							}
 							peers[introduction.From] = pr
 							peerLock.Unlock()
 
@@ -416,6 +444,8 @@ func (a *Adapter) Open() (chan string, error) {
 								continue
 							}
 
+							iid := uuid.NewString()
+
 							c, err := webrtc.NewPeerConnection(webrtc.Configuration{
 								ICEServers: iceServers,
 							})
@@ -437,6 +467,14 @@ func (a *Adapter) Open() (chan string, error) {
 									if !ok {
 										if a.config.Verbose {
 											log.Println("Could not find connection for peer", offer.From, ", skipping")
+										}
+
+										return
+									}
+
+									if c.iid == iid {
+										if a.config.Verbose {
+											log.Println("Peer", offer.From, ", already rejoined, not disconnecting")
 										}
 
 										return
@@ -525,7 +563,7 @@ func (a *Adapter) Open() (chan string, error) {
 							peerLock.Lock()
 
 							candidates := make(chan webrtc.ICECandidateInit)
-							peers[offer.From] = &peer{c, candidates, nil}
+							peers[offer.From] = &peer{c, candidates, nil, iid}
 
 							peerLock.Unlock()
 
