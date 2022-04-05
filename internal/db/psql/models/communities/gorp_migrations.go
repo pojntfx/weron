@@ -319,7 +319,7 @@ func (q gorpMigrationQuery) One(ctx context.Context, exec boil.ContextExecutor) 
 
 	err := q.Bind(ctx, exec, o)
 	if err != nil {
-		if errors.Cause(err) == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, sql.ErrNoRows
 		}
 		return nil, errors.Wrap(err, "models: failed to execute a one query for gorp_migrations")
@@ -406,7 +406,7 @@ func FindGorpMigration(ctx context.Context, exec boil.ContextExecutor, iD string
 
 	err := q.Bind(ctx, exec, gorpMigrationObj)
 	if err != nil {
-		if errors.Cause(err) == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, sql.ErrNoRows
 		}
 		return nil, errors.Wrap(err, "models: unable to select from gorp_migrations")
@@ -723,7 +723,7 @@ func (o *GorpMigration) Upsert(ctx context.Context, exec boil.ContextExecutor, u
 	}
 	if len(cache.retMapping) != 0 {
 		err = exec.QueryRowContext(ctx, cache.query, vals...).Scan(returns...)
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil // Postgres doesn't return anything when there's no update
 		}
 	} else {
