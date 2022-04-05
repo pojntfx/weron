@@ -13,7 +13,7 @@ func getPlatformSpecificParams(name string) water.PlatformSpecificParams {
 	}
 }
 
-func setIPAddress(linkName string, ipaddr string) error {
+func setIPAddress(linkName string, ipaddr string, ipv4 bool) error {
 	link, err := netlink.LinkByName(linkName)
 	if err != nil {
 		return err

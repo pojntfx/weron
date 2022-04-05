@@ -80,8 +80,17 @@ func (a *Adapter) Open() error {
 		return err
 	}
 
-	for _, ip := range a.config.IPs {
-		if err = setIPAddress(a.tun.Name(), ip); err != nil {
+	for _, rawIP := range a.config.IPs {
+		ip, _, err := net.ParseCIDR(rawIP)
+		if err != nil {
+			if a.config.Verbose {
+				log.Println("Could not parse IP address, skipping")
+			}
+
+			continue
+		}
+
+		if err = setIPAddress(a.tun.Name(), rawIP, ip.To4() != nil); err != nil {
 			return err
 		}
 	}
