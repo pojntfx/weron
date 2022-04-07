@@ -313,7 +313,7 @@ func (a *Adapter) Open() (chan string, error) {
 										return
 									}
 
-									if c.iid == iid {
+									if c.iid != iid {
 										if a.config.Verbose {
 											log.Println("Peer", introduction.From, ", already rejoined, not disconnecting")
 										}
@@ -472,7 +472,7 @@ func (a *Adapter) Open() (chan string, error) {
 										return
 									}
 
-									if c.iid == iid {
+									if c.iid != iid {
 										if a.config.Verbose {
 											log.Println("Peer", offer.From, ", already rejoined, not disconnecting")
 										}
