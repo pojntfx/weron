@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"net/url"
+	"runtime"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ func main() {
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	dev := flag.String("dev", "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
 	mac := flag.String("mac", "", "MAC address to give to the TAP device (i.e. 3a:f8:de:7b:ef:52) (default is auto-generated; only supported on Linux)")
+	parallel := flag.Int("parallel", runtime.NumCPU(), "Amount of threads to use to decode frames")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -76,6 +78,7 @@ func main() {
 			OnPeerDisconnected: func(s string) {
 				log.Println("Disconnected from peer", s)
 			},
+			Parallel: *parallel,
 			AdapterConfig: &wrtcconn.AdapterConfig{
 				Timeout: *timeout,
 				Verbose: *verbose,
