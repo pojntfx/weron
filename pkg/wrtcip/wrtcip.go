@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	dataChannelName      = "webrtcfd"
-	ethernetHeaderLength = 14
+	dataChannelName = "webrtcfd"
+	headerLength    = 22
 )
 
 type AdapterConfig struct {
@@ -73,7 +73,7 @@ func NewAdapter(
 func (a *Adapter) Open() error {
 	var err error
 	a.tun, err = water.New(water.Config{
-		DeviceType:             water.TAP,
+		DeviceType:             water.TUN,
 		PlatformSpecificParams: getPlatformSpecificParams(a.config.Device),
 	})
 	if err != nil {
@@ -133,7 +133,7 @@ func (a *Adapter) Wait() error {
 
 	go func() {
 		for {
-			buf := make([]byte, a.mtu+ethernetHeaderLength)
+			buf := make([]byte, a.mtu+headerLength)
 
 			if _, err := a.tun.Read(buf); err != nil {
 				if a.config.Verbose {
@@ -143,63 +143,21 @@ func (a *Adapter) Wait() error {
 				continue
 			}
 
-			var frame layers.Ethernet
-			if err := frame.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
-				if a.config.Verbose {
-					log.Println("Could not unmarshal frame, skipping")
-				}
-
-				continue
-			}
-
 			var dst net.IP
-			if frame.NextLayerType().Contains(layers.LayerTypeIPv6) {
+			var packet layers.IPv4
+			if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
 				var packet layers.IPv6
-				if err := packet.DecodeFromBytes(frame.LayerPayload(), gopacket.NilDecodeFeedback); err != nil {
+				if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
 					if a.config.Verbose {
 						log.Println("Could not unmarshal packet, skipping")
 					}
 
 					continue
+				} else {
+					dst = packet.DstIP
 				}
-
-				dst = packet.DstIP
-			} else if frame.NextLayerType().Contains(layers.LayerTypeIPv4) {
-				var packet layers.IPv4
-				if err := packet.DecodeFromBytes(frame.LayerPayload(), gopacket.NilDecodeFeedback); err != nil {
-					if a.config.Verbose {
-						log.Println("Could not unmarshal packet, skipping")
-					}
-
-					continue
-				}
-
-				dst = packet.DstIP
-			} else if frame.NextLayerType().Contains(layers.LayerTypeARP) {
-				var packet layers.ARP
-				if err := packet.DecodeFromBytes(frame.LayerPayload(), gopacket.NilDecodeFeedback); err != nil {
-					if a.config.Verbose {
-						log.Println("Could not unmarshal packet, skipping")
-					}
-
-					continue
-				}
-
-				if len(packet.DstProtAddress) < 4 {
-					if a.config.Verbose {
-						log.Println("Could not unmarshal protocol address, skipping")
-					}
-
-					continue
-				}
-
-				dst = net.IP{packet.DstProtAddress[0], packet.DstProtAddress[1], packet.DstProtAddress[2], packet.DstProtAddress[3]}
 			} else {
-				if a.config.Verbose {
-					log.Println("Got unknown layer type, skipping:", frame.NextLayerType())
-				}
-
-				continue
+				dst = packet.DstIP
 			}
 
 			peersLock.Lock()
@@ -268,7 +226,7 @@ func (a *Adapter) Wait() error {
 				peersLock.Unlock()
 
 				for {
-					buf := make([]byte, a.mtu+ethernetHeaderLength)
+					buf := make([]byte, a.mtu+headerLength)
 
 					if _, err := peer.Conn.Read(buf); err != nil {
 						if a.config.Verbose {
