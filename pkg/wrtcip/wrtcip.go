@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/songgao/water"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -27,6 +29,7 @@ type AdapterConfig struct {
 	OnPeerConnect      func(string)
 	OnPeerDisconnected func(string)
 	IPs                []string
+	Parallel           int
 }
 
 type Adapter struct {
@@ -57,6 +60,10 @@ func NewAdapter(
 	ctx context.Context,
 ) *Adapter {
 	ictx, cancel := context.WithCancel(ctx)
+
+	if config.Parallel <= 0 {
+		config.Parallel = runtime.NumCPU()
+	}
 
 	return &Adapter{
 		signaler: signaler,
@@ -132,6 +139,8 @@ func (a *Adapter) Wait() error {
 	var peersLock sync.Mutex
 
 	go func() {
+		sem := semaphore.NewWeighted(int64(a.config.Parallel))
+
 		for {
 			buf := make([]byte, a.mtu+headerLength)
 
@@ -143,37 +152,48 @@ func (a *Adapter) Wait() error {
 				continue
 			}
 
-			var dst net.IP
-			var packet layers.IPv4
-			if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
-				var packet layers.IPv6
-				if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
+			go func() {
+				if err := sem.Acquire(a.ctx, 1); err != nil {
 					if a.config.Verbose {
-						log.Println("Could not unmarshal packet, skipping")
+						log.Println("Could not acquire semaphore, skipping")
 					}
 
-					continue
+					return
+				}
+				defer sem.Release(1)
+
+				var dst net.IP
+				var packet layers.IPv4
+				if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
+					var packet layers.IPv6
+					if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
+						if a.config.Verbose {
+							log.Println("Could not unmarshal packet, skipping")
+						}
+
+						return
+					} else {
+						dst = packet.DstIP
+					}
 				} else {
 					dst = packet.DstIP
 				}
-			} else {
-				dst = packet.DstIP
-			}
 
-			peersLock.Lock()
-			for _, peer := range peers {
-				// Send if matching destination, multicast or broadcast IP
-				if dst.Equal(peer.ip) || ((dst.IsMulticast() || dst.IsInterfaceLocalMulticast() || dst.IsInterfaceLocalMulticast()) && len(dst) == len(peer.ip)) || (peer.ip.To4() != nil && dst.Equal(getBroadcastAddr(peer.net))) {
-					if _, err := peer.Conn.Write(buf); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not write to peer, skipping")
+				peersLock.Lock()
+				for _, peer := range peers {
+					// Send if matching destination, multicast or broadcast IP
+					if dst.Equal(peer.ip) || ((dst.IsMulticast() || dst.IsInterfaceLocalMulticast() || dst.IsInterfaceLocalMulticast()) && len(dst) == len(peer.ip)) || (peer.ip.To4() != nil && dst.Equal(getBroadcastAddr(peer.net))) {
+						if _, err := peer.Conn.Write(buf); err != nil {
+							if a.config.Verbose {
+								log.Println("Could not write to peer, skipping")
+							}
+
+							continue
 						}
-
-						continue
 					}
 				}
-			}
-			peersLock.Unlock()
+				peersLock.Unlock()
+			}()
 		}
 	}()
 

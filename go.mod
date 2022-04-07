@@ -22,6 +22,7 @@ require (
 	github.com/volatiletech/strmangle v0.0.2
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
 require (
