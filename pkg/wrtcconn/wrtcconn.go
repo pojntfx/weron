@@ -23,31 +23,24 @@ var (
 	ErrMissingTURNCredentials = errors.New("missing TURN server credentials")
 )
 
-const (
-	dataChannelName = "webrtcfd"
-)
-
 type peer struct {
 	conn       *webrtc.PeerConnection
 	candidates chan webrtc.ICECandidateInit
-	channel    *webrtc.DataChannel
+	channels   map[string]*webrtc.DataChannel
 	iid        string
 }
 
-type peerWithID struct {
-	*peer
-	id string
-}
-
 type Peer struct {
-	ID   string
-	Conn io.ReadWriteCloser
+	PeerID    string
+	ChannelID string
+	Conn      io.ReadWriteCloser
 }
 
 type AdapterConfig struct {
-	Timeout time.Duration
-	Verbose bool
-	ID      string
+	Timeout          time.Duration
+	Verbose          bool
+	ID               string
+	PrimaryChannelID string
 }
 
 type Adapter struct {
@@ -72,6 +65,19 @@ func NewAdapter(
 	ctx context.Context,
 ) *Adapter {
 	ictx, cancel := context.WithCancel(ctx)
+
+	if config == nil {
+		config = &AdapterConfig{
+			Timeout:          time.Second * 10,
+			Verbose:          false,
+			ID:               "",
+			PrimaryChannelID: "",
+		}
+	}
+
+	if strings.TrimSpace(config.PrimaryChannelID) == "" {
+		config.PrimaryChannelID = "primary"
+	}
 
 	return &Adapter{
 		signaler: signaler,
@@ -173,8 +179,8 @@ func (a *Adapter) Open() (chan string, error) {
 					defer peerLock.Unlock()
 
 					for _, peer := range peers {
-						if peer.channel != nil {
-							if err := peer.channel.Close(); err != nil {
+						for _, channel := range peer.channels {
+							if err := channel.Close(); err != nil {
 								panic(err)
 							}
 						}
@@ -321,8 +327,10 @@ func (a *Adapter) Open() (chan string, error) {
 										return
 									}
 
-									if err := c.channel.Close(); err != nil {
-										panic(err)
+									for _, channel := range c.channels {
+										if err := channel.Close(); err != nil {
+											panic(err)
+										}
 									}
 
 									if err := c.conn.Close(); err != nil {
@@ -356,7 +364,7 @@ func (a *Adapter) Open() (chan string, error) {
 								}
 							})
 
-							dc, err := c.CreateDataChannel(dataChannelName, nil)
+							dc, err := c.CreateDataChannel(a.config.PrimaryChannelID, nil)
 							if err != nil {
 								panic(err)
 							}
@@ -365,14 +373,43 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Println("Created data channel using signaler with address", conn.RemoteAddr(), "in community", community)
 							}
 
-							pr := &peer{c, make(chan webrtc.ICECandidateInit), dc, iid}
+							pr := &peer{c, make(chan webrtc.ICECandidateInit), map[string]*webrtc.DataChannel{
+								dc.Label(): dc,
+							}, iid}
 
 							dc.OnOpen(func() {
 								if a.config.Verbose {
-									log.Println("Connected to peer", introduction.From)
+									log.Println("Connected to channel", dc.Label(), "with peer", introduction.From)
 								}
 
-								a.peers <- &Peer{introduction.From, newDataChannelReadWriteCloser(pr.channel)}
+								peerLock.Lock()
+								peers[introduction.From].channels[dc.Label()] = dc
+								a.peers <- &Peer{introduction.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
+								peerLock.Unlock()
+							})
+
+							dc.OnClose(func() {
+								if a.config.Verbose {
+									log.Println("Disconnected from channel", dc.Label(), "with peer", introduction.From)
+								}
+
+								peerLock.Lock()
+								defer peerLock.Unlock()
+								channel, ok := peers[introduction.From].channels[dc.Label()]
+								if !ok {
+									if a.config.Verbose {
+										log.Println("Could not find channel", dc.Label(), "for peer", introduction.From, ", skipping")
+
+									}
+
+									return
+								}
+
+								if err := channel.Close(); err != nil {
+									panic(err)
+								}
+
+								delete(peers[introduction.From].channels, dc.Label())
 							})
 
 							o, err := c.CreateOffer(nil)
@@ -402,8 +439,10 @@ func (a *Adapter) Open() (chan string, error) {
 									log.Println("Disconnected from peer", introduction.From)
 								}
 
-								if err := old.channel.Close(); err != nil {
-									panic(err)
+								for _, channel := range old.channels {
+									if err := channel.Close(); err != nil {
+										panic(err)
+									}
 								}
 
 								if err := old.conn.Close(); err != nil {
@@ -463,7 +502,6 @@ func (a *Adapter) Open() (chan string, error) {
 									defer peerLock.Unlock()
 
 									c, ok := peers[offer.From]
-
 									if !ok {
 										if a.config.Verbose {
 											log.Println("Could not find connection for peer", offer.From, ", skipping")
@@ -480,7 +518,7 @@ func (a *Adapter) Open() (chan string, error) {
 										return
 									}
 
-									if err := c.channel.Close(); err != nil {
+									if err := c.conn.Close(); err != nil {
 										panic(err)
 									}
 
@@ -518,13 +556,37 @@ func (a *Adapter) Open() (chan string, error) {
 							c.OnDataChannel(func(dc *webrtc.DataChannel) {
 								dc.OnOpen(func() {
 									if a.config.Verbose {
-										log.Println("Connected to peer", offer.From)
+										log.Println("Connected to channel", dc.Label(), "with peer", offer.From)
 									}
 
 									peerLock.Lock()
-									peers[offer.From].channel = dc
-									a.peers <- &Peer{offer.From, newDataChannelReadWriteCloser(dc)}
+									peers[offer.From].channels[dc.Label()] = dc
+									a.peers <- &Peer{offer.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
 									peerLock.Unlock()
+								})
+
+								dc.OnClose(func() {
+									if a.config.Verbose {
+										log.Println("Disconnected from channel", dc.Label(), "with peer", offer.From)
+									}
+
+									peerLock.Lock()
+									defer peerLock.Unlock()
+									channel, ok := peers[offer.From].channels[dc.Label()]
+									if !ok {
+										if a.config.Verbose {
+											log.Println("Could not find channel", dc.Label(), "for peer", offer.From, ", skipping")
+
+										}
+
+										return
+									}
+
+									if err := channel.Close(); err != nil {
+										panic(err)
+									}
+
+									delete(peers[offer.From].channels, dc.Label())
 								})
 							})
 
@@ -563,7 +625,7 @@ func (a *Adapter) Open() (chan string, error) {
 							peerLock.Lock()
 
 							candidates := make(chan webrtc.ICECandidateInit)
-							peers[offer.From] = &peer{c, candidates, nil, iid}
+							peers[offer.From] = &peer{c, candidates, map[string]*webrtc.DataChannel{}, iid}
 
 							peerLock.Unlock()
 

@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	dataChannelName      = "webrtcfd"
 	broadcastMAC         = "ff:ff:ff:ff:ff:ff"
 	ethernetHeaderLength = 14
 )
@@ -149,7 +148,7 @@ func (a *Adapter) Wait() error {
 				peersLock.Lock()
 				for _, peer := range peers {
 					// Send if matching destination, multicast or broadcast MAC
-					if dst := frame.DstMAC.String(); dst == peer.ID || frame.DstMAC[1]&0b01 == 1 || dst == broadcastMAC {
+					if dst := frame.DstMAC.String(); dst == peer.PeerID || frame.DstMAC[1]&0b01 == 1 || dst == broadcastMAC {
 						if _, err := peer.Conn.Write(buf); err != nil {
 							if a.config.Verbose {
 								log.Println("Could not write to peer, skipping")
@@ -178,22 +177,22 @@ func (a *Adapter) Wait() error {
 			}
 		case peer := <-a.adapter.Accept():
 			if a.config.OnPeerConnect != nil {
-				a.config.OnPeerConnect(peer.ID)
+				a.config.OnPeerConnect(peer.PeerID)
 			}
 
 			go func() {
 				defer func() {
 					if a.config.OnPeerDisconnected != nil {
-						a.config.OnPeerDisconnected(peer.ID)
+						a.config.OnPeerDisconnected(peer.PeerID)
 					}
 
 					peersLock.Lock()
-					delete(peers, peer.ID)
+					delete(peers, peer.PeerID)
 					peersLock.Unlock()
 				}()
 
 				peersLock.Lock()
-				peers[peer.ID] = peer
+				peers[peer.PeerID] = peer
 				peersLock.Unlock()
 
 				for {
