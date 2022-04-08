@@ -29,7 +29,7 @@ func main() {
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
 	username := flag.String("username", "", "Username to send messages as (default is auto-generated)")
-	channel := flag.String("channel", "primary", "Channel in community to join")
+	channel := flag.String("channel", "primary", "Comma-seperated list of channel in community to join")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
@@ -50,7 +50,7 @@ func main() {
 		panic(errMissingKey)
 	}
 
-	fmt.Printf("\r.%v\n", *raddr)
+	fmt.Printf("\r\u001b[0K.%v\n", *raddr)
 
 	u, err := url.Parse(*raddr)
 	if err != nil {
@@ -66,11 +66,11 @@ func main() {
 		u.String(),
 		*key,
 		strings.Split(*ice, ","),
+		strings.Split(*channel, ","),
 		&wrtcconn.AdapterConfig{
-			Timeout:          *timeout,
-			Verbose:          *verbose,
-			PrimaryChannelID: *channel,
-			ID:               *username,
+			Timeout: *timeout,
+			Verbose: *verbose,
+			ID:      *username,
 		},
 		ctx,
 	)
@@ -100,25 +100,25 @@ func main() {
 		case <-ctx.Done():
 			return
 		case id = <-ids:
-			fmt.Printf("\r%v.", id)
+			fmt.Printf("\r\u001b[0K%v.", id)
 		case peer := <-adapter.Accept():
-			fmt.Printf("\r+%v@%v\n", peer.PeerID, peer.ChannelID)
-			fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
+			fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
+			fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
 
 			l := lines.Listener(0)
 
 			go func() {
 				defer func() {
-					fmt.Printf("\r-%v@%v\n", peer.PeerID, peer.ChannelID)
-					fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
+					fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
+					fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
 
 					l.Close()
 				}()
 
 				reader := bufio.NewScanner(peer.Conn)
 				for reader.Scan() {
-					fmt.Printf("\r%v@%v: %v\n", peer.PeerID, peer.ChannelID, reader.Text())
-					fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
+					fmt.Printf("\r\u001b[0K%v@%v: %v\n", peer.PeerID, peer.ChannelID, reader.Text())
+					fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
 				}
 			}()
 
@@ -128,7 +128,7 @@ func main() {
 						return
 					}
 
-					fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
+					fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
 				}
 			}()
 		}

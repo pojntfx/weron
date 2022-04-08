@@ -37,16 +37,16 @@ type Peer struct {
 }
 
 type AdapterConfig struct {
-	Timeout          time.Duration
-	Verbose          bool
-	ID               string
-	PrimaryChannelID string
+	Timeout time.Duration
+	Verbose bool
+	ID      string
 }
 
 type Adapter struct {
 	signaler string
 	key      string
 	ice      []string
+	channels []string
 	config   *AdapterConfig
 	ctx      context.Context
 
@@ -61,6 +61,7 @@ func NewAdapter(
 	signaler string,
 	key string,
 	ice []string,
+	channels []string,
 	config *AdapterConfig,
 	ctx context.Context,
 ) *Adapter {
@@ -68,21 +69,17 @@ func NewAdapter(
 
 	if config == nil {
 		config = &AdapterConfig{
-			Timeout:          time.Second * 10,
-			Verbose:          false,
-			ID:               "",
-			PrimaryChannelID: "",
+			Timeout: time.Second * 10,
+			Verbose: false,
+			ID:      "",
 		}
-	}
-
-	if strings.TrimSpace(config.PrimaryChannelID) == "" {
-		config.PrimaryChannelID = "primary"
 	}
 
 	return &Adapter{
 		signaler: signaler,
 		key:      key,
 		ice:      ice,
+		channels: channels,
 		config:   config,
 		ctx:      ictx,
 
@@ -364,103 +361,113 @@ func (a *Adapter) Open() (chan string, error) {
 								}
 							})
 
-							dc, err := c.CreateDataChannel(a.config.PrimaryChannelID, nil)
-							if err != nil {
-								panic(err)
-							}
-
-							if a.config.Verbose {
-								log.Println("Created data channel using signaler with address", conn.RemoteAddr(), "in community", community)
-							}
-
-							pr := &peer{c, make(chan webrtc.ICECandidateInit), map[string]*webrtc.DataChannel{
-								dc.Label(): dc,
-							}, iid}
-
-							dc.OnOpen(func() {
-								if a.config.Verbose {
-									log.Println("Connected to channel", dc.Label(), "with peer", introduction.From)
+							for i, channelID := range a.channels {
+								// Skip empty channel IDs
+								if strings.TrimSpace(channelID) == "" {
+									continue
 								}
 
-								peerLock.Lock()
-								peers[introduction.From].channels[dc.Label()] = dc
-								a.peers <- &Peer{introduction.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
-								peerLock.Unlock()
-							})
-
-							dc.OnClose(func() {
-								if a.config.Verbose {
-									log.Println("Disconnected from channel", dc.Label(), "with peer", introduction.From)
-								}
-
-								peerLock.Lock()
-								defer peerLock.Unlock()
-								channel, ok := peers[introduction.From].channels[dc.Label()]
-								if !ok {
-									if a.config.Verbose {
-										log.Println("Could not find channel", dc.Label(), "for peer", introduction.From, ", skipping")
-
-									}
-
-									return
-								}
-
-								if err := channel.Close(); err != nil {
+								dc, err := c.CreateDataChannel(channelID, nil)
+								if err != nil {
 									panic(err)
 								}
 
-								delete(peers[introduction.From].channels, dc.Label())
-							})
-
-							o, err := c.CreateOffer(nil)
-							if err != nil {
-								panic(err)
-							}
-
-							if err := c.SetLocalDescription(o); err != nil {
-								panic(err)
-							}
-
-							oj, err := json.Marshal(o)
-							if err != nil {
-								panic(err)
-							}
-
-							p, err := json.Marshal(websocketapi.NewOffer(id, introduction.From, oj))
-							if err != nil {
-								panic(err)
-							}
-
-							peerLock.Lock()
-							old, ok := peers[introduction.From]
-							if ok {
-								// Disconnect the old peer
 								if a.config.Verbose {
-									log.Println("Disconnected from peer", introduction.From)
+									log.Println("Created data channel with ID", channelID, " using signaler with address", conn.RemoteAddr(), "in community", community)
 								}
 
-								for _, channel := range old.channels {
+								dc.OnOpen(func() {
+									if a.config.Verbose {
+										log.Println("Connected to channel", dc.Label(), "with peer", introduction.From)
+									}
+
+									peerLock.Lock()
+									peers[introduction.From].channels[dc.Label()] = dc
+									a.peers <- &Peer{introduction.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
+									peerLock.Unlock()
+								})
+
+								dc.OnClose(func() {
+									if a.config.Verbose {
+										log.Println("Disconnected from channel", dc.Label(), "with peer", introduction.From)
+									}
+
+									peerLock.Lock()
+									defer peerLock.Unlock()
+									channel, ok := peers[introduction.From].channels[dc.Label()]
+									if !ok {
+										if a.config.Verbose {
+											log.Println("Could not find channel", dc.Label(), "for peer", introduction.From, ", skipping")
+
+										}
+
+										return
+									}
+
 									if err := channel.Close(); err != nil {
 										panic(err)
 									}
-								}
 
-								if err := old.conn.Close(); err != nil {
-									panic(err)
-								}
+									delete(peers[introduction.From].channels, dc.Label())
+								})
 
-								close(old.candidates)
+								if i == 0 {
+									o, err := c.CreateOffer(nil)
+									if err != nil {
+										panic(err)
+									}
+
+									if err := c.SetLocalDescription(o); err != nil {
+										panic(err)
+									}
+
+									oj, err := json.Marshal(o)
+									if err != nil {
+										panic(err)
+									}
+
+									p, err := json.Marshal(websocketapi.NewOffer(id, introduction.From, oj))
+									if err != nil {
+										panic(err)
+									}
+
+									pr := &peer{c, make(chan webrtc.ICECandidateInit), map[string]*webrtc.DataChannel{
+										dc.Label(): dc,
+									}, iid}
+
+									peerLock.Lock()
+									old, ok := peers[introduction.From]
+									if ok {
+										// Disconnect the old peer
+										if a.config.Verbose {
+											log.Println("Disconnected from peer", introduction.From)
+										}
+
+										for _, channel := range old.channels {
+											if err := channel.Close(); err != nil {
+												panic(err)
+											}
+										}
+
+										if err := old.conn.Close(); err != nil {
+											panic(err)
+										}
+
+										close(old.candidates)
+									}
+									peers[introduction.From] = pr
+									peerLock.Unlock()
+
+									go func() {
+										a.lines <- p
+
+										if a.config.Verbose {
+											log.Println("Sent offer to signaler with address", u.String(), "and ID", id, "to client", introduction.From)
+										}
+									}()
+								}
 							}
-							peers[introduction.From] = pr
-							peerLock.Unlock()
 
-							go func() {
-								a.lines <- p
-
-								if a.config.Verbose {
-									log.Println("Sent offer to signaler with address", u.String(), "and ID", id, "to client", introduction.From)
-								}
-							}()
 						case websocketapi.TypeOffer:
 							var offer websocketapi.Exchange
 							if err := json.Unmarshal(input, &offer); err != nil {

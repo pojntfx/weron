@@ -86,6 +86,7 @@ func (a *Adapter) Open() error {
 		a.signaler,
 		a.key,
 		strings.Split(strings.Join(a.ice, ","), ","),
+		[]string{"primary"},
 		a.config.AdapterConfig,
 		a.ctx,
 	)
