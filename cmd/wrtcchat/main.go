@@ -28,6 +28,8 @@ func main() {
 	community := flag.String("community", "", "ID of community to join")
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
+	username := flag.String("username", "", "Username to send messages as (default is auto-generated)")
+	channel := flag.String("channel", "primary", "Channel in community to join")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
@@ -65,8 +67,10 @@ func main() {
 		*key,
 		strings.Split(*ice, ","),
 		&wrtcconn.AdapterConfig{
-			Timeout: *timeout,
-			Verbose: *verbose,
+			Timeout:          *timeout,
+			Verbose:          *verbose,
+			PrimaryChannelID: *channel,
+			ID:               *username,
 		},
 		ctx,
 	)
