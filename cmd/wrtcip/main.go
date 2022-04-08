@@ -30,7 +30,7 @@ func main() {
 	key := flag.String("key", "", "Encryption key for community")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	dev := flag.String("dev", "", "Name to give to the TUN device (i.e. weron0) (default is auto-generated; only supported on Linux and macOS)")
-	ips := flag.String("ips", "", "Comma-seperated list of IP addresses to give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported)")
+	ips := flag.String("ips", "", "Comma-seperated list of IP addresses to give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported; macOS only supports IPv6)")
 	parallel := flag.Int("parallel", runtime.NumCPU(), "Amount of threads to use to decode packets")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
