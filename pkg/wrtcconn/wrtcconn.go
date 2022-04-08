@@ -54,7 +54,9 @@ type Adapter struct {
 	done   bool
 	lines  chan []byte
 
-	peers chan *Peer
+	peerChan chan *Peer
+	peers    map[string]*peer
+	peerLock sync.Mutex
 }
 
 func NewAdapter(
@@ -86,9 +88,10 @@ func NewAdapter(
 		config:   config,
 		ctx:      ictx,
 
-		cancel: cancel,
-		peers:  make(chan *Peer),
-		lines:  make(chan []byte),
+		cancel:   cancel,
+		lines:    make(chan []byte),
+		peerChan: make(chan *Peer),
+		peers:    map[string]*peer{},
 	}
 }
 
@@ -140,11 +143,12 @@ func (a *Adapter) Open() (chan string, error) {
 				return
 			}
 
-			peers := map[string]*peer{}
-			var peerLock sync.Mutex
-
 			func() {
 				defer func() {
+					a.peerLock.Lock()
+					a.peers = map[string]*peer{}
+					a.peerLock.Unlock()
+
 					if err := recover(); err != nil {
 						if a.config.Verbose {
 							log.Println("closed connection to signaler with address", u.String()+":", err, "(wrong username or password?)")
@@ -175,10 +179,10 @@ func (a *Adapter) Open() (chan string, error) {
 						panic(err)
 					}
 
-					peerLock.Lock()
-					defer peerLock.Unlock()
+					a.peerLock.Lock()
+					defer a.peerLock.Unlock()
 
-					for _, peer := range peers {
+					for _, peer := range a.peers {
 						for _, channel := range peer.channels {
 							if err := channel.Close(); err != nil {
 								panic(err)
@@ -306,10 +310,10 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Println("Disconnected from peer", introduction.From)
 									}
 
-									peerLock.Lock()
-									defer peerLock.Unlock()
+									a.peerLock.Lock()
+									defer a.peerLock.Unlock()
 
-									c, ok := peers[introduction.From]
+									c, ok := a.peers[introduction.From]
 
 									if !ok {
 										if a.config.Verbose {
@@ -339,7 +343,7 @@ func (a *Adapter) Open() (chan string, error) {
 
 									close(c.candidates)
 
-									delete(peers, introduction.From)
+									delete(a.peers, introduction.From)
 								}
 							})
 
@@ -364,6 +368,43 @@ func (a *Adapter) Open() (chan string, error) {
 								}
 							})
 
+							c.OnDataChannel(func(dc *webrtc.DataChannel) {
+								dc.OnOpen(func() {
+									if a.config.Verbose {
+										log.Println("Connected to channel", dc.Label(), "with peer", introduction.From)
+									}
+
+									a.peerLock.Lock()
+									a.peers[introduction.From].channels[dc.Label()] = dc
+									a.peerChan <- &Peer{introduction.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
+									a.peerLock.Unlock()
+								})
+
+								dc.OnClose(func() {
+									if a.config.Verbose {
+										log.Println("Disconnected from channel", dc.Label(), "with peer", introduction.From)
+									}
+
+									a.peerLock.Lock()
+									defer a.peerLock.Unlock()
+									channel, ok := a.peers[introduction.From].channels[dc.Label()]
+									if !ok {
+										if a.config.Verbose {
+											log.Println("Could not find channel", dc.Label(), "for peer", introduction.From, ", skipping")
+
+										}
+
+										return
+									}
+
+									if err := channel.Close(); err != nil {
+										panic(err)
+									}
+
+									delete(a.peers[introduction.From].channels, dc.Label())
+								})
+							})
+
 							dc, err := c.CreateDataChannel(a.config.PrimaryChannelID, nil)
 							if err != nil {
 								panic(err)
@@ -382,10 +423,10 @@ func (a *Adapter) Open() (chan string, error) {
 									log.Println("Connected to channel", dc.Label(), "with peer", introduction.From)
 								}
 
-								peerLock.Lock()
-								peers[introduction.From].channels[dc.Label()] = dc
-								a.peers <- &Peer{introduction.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
-								peerLock.Unlock()
+								a.peerLock.Lock()
+								a.peers[introduction.From].channels[dc.Label()] = dc
+								a.peerChan <- &Peer{introduction.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
+								a.peerLock.Unlock()
 							})
 
 							dc.OnClose(func() {
@@ -393,9 +434,9 @@ func (a *Adapter) Open() (chan string, error) {
 									log.Println("Disconnected from channel", dc.Label(), "with peer", introduction.From)
 								}
 
-								peerLock.Lock()
-								defer peerLock.Unlock()
-								channel, ok := peers[introduction.From].channels[dc.Label()]
+								a.peerLock.Lock()
+								defer a.peerLock.Unlock()
+								channel, ok := a.peers[introduction.From].channels[dc.Label()]
 								if !ok {
 									if a.config.Verbose {
 										log.Println("Could not find channel", dc.Label(), "for peer", introduction.From, ", skipping")
@@ -409,7 +450,7 @@ func (a *Adapter) Open() (chan string, error) {
 									panic(err)
 								}
 
-								delete(peers[introduction.From].channels, dc.Label())
+								delete(a.peers[introduction.From].channels, dc.Label())
 							})
 
 							o, err := c.CreateOffer(nil)
@@ -431,8 +472,8 @@ func (a *Adapter) Open() (chan string, error) {
 								panic(err)
 							}
 
-							peerLock.Lock()
-							old, ok := peers[introduction.From]
+							a.peerLock.Lock()
+							old, ok := a.peers[introduction.From]
 							if ok {
 								// Disconnect the old peer
 								if a.config.Verbose {
@@ -451,8 +492,8 @@ func (a *Adapter) Open() (chan string, error) {
 
 								close(old.candidates)
 							}
-							peers[introduction.From] = pr
-							peerLock.Unlock()
+							a.peers[introduction.From] = pr
+							a.peerLock.Unlock()
 
 							go func() {
 								a.lines <- p
@@ -498,10 +539,10 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Println("Disconnected from peer", offer.From)
 									}
 
-									peerLock.Lock()
-									defer peerLock.Unlock()
+									a.peerLock.Lock()
+									defer a.peerLock.Unlock()
 
-									c, ok := peers[offer.From]
+									c, ok := a.peers[offer.From]
 									if !ok {
 										if a.config.Verbose {
 											log.Println("Could not find connection for peer", offer.From, ", skipping")
@@ -528,7 +569,7 @@ func (a *Adapter) Open() (chan string, error) {
 
 									close(c.candidates)
 
-									delete(peers, offer.From)
+									delete(a.peers, offer.From)
 								}
 							})
 
@@ -559,10 +600,10 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Println("Connected to channel", dc.Label(), "with peer", offer.From)
 									}
 
-									peerLock.Lock()
-									peers[offer.From].channels[dc.Label()] = dc
-									a.peers <- &Peer{offer.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
-									peerLock.Unlock()
+									a.peerLock.Lock()
+									a.peers[offer.From].channels[dc.Label()] = dc
+									a.peerChan <- &Peer{offer.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
+									a.peerLock.Unlock()
 								})
 
 								dc.OnClose(func() {
@@ -570,9 +611,9 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Println("Disconnected from channel", dc.Label(), "with peer", offer.From)
 									}
 
-									peerLock.Lock()
-									defer peerLock.Unlock()
-									channel, ok := peers[offer.From].channels[dc.Label()]
+									a.peerLock.Lock()
+									defer a.peerLock.Unlock()
+									channel, ok := a.peers[offer.From].channels[dc.Label()]
 									if !ok {
 										if a.config.Verbose {
 											log.Println("Could not find channel", dc.Label(), "for peer", offer.From, ", skipping")
@@ -586,7 +627,7 @@ func (a *Adapter) Open() (chan string, error) {
 										panic(err)
 									}
 
-									delete(peers[offer.From].channels, dc.Label())
+									delete(a.peers[offer.From].channels, dc.Label())
 								})
 							})
 
@@ -622,12 +663,12 @@ func (a *Adapter) Open() (chan string, error) {
 								panic(err)
 							}
 
-							peerLock.Lock()
+							a.peerLock.Lock()
 
 							candidates := make(chan webrtc.ICECandidateInit)
-							peers[offer.From] = &peer{c, candidates, map[string]*webrtc.DataChannel{}, iid}
+							a.peers[offer.From] = &peer{c, candidates, map[string]*webrtc.DataChannel{}, iid}
 
-							peerLock.Unlock()
+							a.peerLock.Unlock()
 
 							go func() {
 								for candidate := range candidates {
@@ -672,15 +713,15 @@ func (a *Adapter) Open() (chan string, error) {
 								continue
 							}
 
-							peerLock.Lock()
-							c, ok := peers[candidate.From]
+							a.peerLock.Lock()
+							c, ok := a.peers[candidate.From]
 
 							if !ok {
 								if a.config.Verbose {
 									log.Println("Could not find connection for peer", candidate.From, ", skipping")
 								}
 
-								peerLock.Unlock()
+								a.peerLock.Unlock()
 
 								continue
 							}
@@ -697,7 +738,7 @@ func (a *Adapter) Open() (chan string, error) {
 								c.candidates <- webrtc.ICECandidateInit{Candidate: string(candidate.Payload)}
 							}()
 
-							peerLock.Unlock()
+							a.peerLock.Unlock()
 						case websocketapi.TypeAnswer:
 							var answer websocketapi.Exchange
 							if err := json.Unmarshal(input, &answer); err != nil {
@@ -720,9 +761,9 @@ func (a *Adapter) Open() (chan string, error) {
 								continue
 							}
 
-							peerLock.Lock()
-							c, ok := peers[answer.From]
-							peerLock.Unlock()
+							a.peerLock.Lock()
+							c, ok := a.peers[answer.From]
+							a.peerLock.Unlock()
 
 							if !ok {
 								if a.config.Verbose {
@@ -818,7 +859,7 @@ func (a *Adapter) Close() error {
 }
 
 func (a *Adapter) Accept() chan *Peer {
-	return a.peers
+	return a.peerChan
 }
 
 type message struct {
