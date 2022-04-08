@@ -20,9 +20,6 @@ var (
 	errMissingPassword  = errors.New("missing password")
 
 	errMissingKey = errors.New("missing key")
-
-	errInvalidTURNServerAddr  = errors.New("invalid TURN server address")
-	errMissingTURNCredentials = errors.New("missing TURN server credentials")
 )
 
 func main() {
@@ -99,25 +96,25 @@ func main() {
 		case <-ctx.Done():
 			return
 		case id = <-ids:
-			fmt.Printf("\r%v> ", id)
+			fmt.Printf("\r%v.", id)
 		case peer := <-adapter.Accept():
-			fmt.Printf("\r+%v\n", peer.ID)
-			fmt.Printf("\r%v> ", id)
+			fmt.Printf("\r+%v@%v\n", peer.PeerID, peer.ChannelID)
+			fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
 
 			l := lines.Listener(0)
 
 			go func() {
 				defer func() {
-					fmt.Printf("\r-%v\n", peer.ID)
-					fmt.Printf("\r%v> ", id)
+					fmt.Printf("\r-%v@%v\n", peer.PeerID, peer.ChannelID)
+					fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
 
 					l.Close()
 				}()
 
 				reader := bufio.NewScanner(peer.Conn)
 				for reader.Scan() {
-					fmt.Printf("\r%v: %v\n", peer.ID, reader.Text())
-					fmt.Printf("\r%v> ", id)
+					fmt.Printf("\r%v@%v: %v\n", peer.PeerID, peer.ChannelID, reader.Text())
+					fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
 				}
 			}()
 
@@ -127,7 +124,7 @@ func main() {
 						return
 					}
 
-					fmt.Printf("\r%v> ", id)
+					fmt.Printf("\r%v@%v> ", id, peer.ChannelID)
 				}
 			}()
 		}

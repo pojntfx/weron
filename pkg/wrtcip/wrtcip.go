@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	dataChannelName = "webrtcfd"
-	headerLength    = 22
+	headerLength = 22
 )
 
 type AdapterConfig struct {
@@ -211,22 +210,22 @@ func (a *Adapter) Wait() error {
 			}
 		case peer := <-a.adapter.Accept():
 			if a.config.OnPeerConnect != nil {
-				a.config.OnPeerConnect(peer.ID)
+				a.config.OnPeerConnect(peer.PeerID)
 			}
 
 			go func() {
 				defer func() {
 					if a.config.OnPeerDisconnected != nil {
-						a.config.OnPeerDisconnected(peer.ID)
+						a.config.OnPeerDisconnected(peer.PeerID)
 					}
 
 					peersLock.Lock()
-					delete(peers, peer.ID)
+					delete(peers, peer.PeerID)
 					peersLock.Unlock()
 				}()
 
 				ips := []string{}
-				if err := json.Unmarshal([]byte(peer.ID), &ips); err != nil {
+				if err := json.Unmarshal([]byte(peer.PeerID), &ips); err != nil {
 					return
 				}
 

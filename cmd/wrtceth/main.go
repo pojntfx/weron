@@ -19,9 +19,6 @@ var (
 	errMissingPassword  = errors.New("missing password")
 
 	errMissingKey = errors.New("missing key")
-
-	errInvalidTURNServerAddr  = errors.New("invalid TURN server address")
-	errMissingTURNCredentials = errors.New("missing TURN server credentials")
 )
 
 func main() {
