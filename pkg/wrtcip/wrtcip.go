@@ -96,6 +96,11 @@ func (a *Adapter) Open() error {
 			continue
 		}
 
+		// macOS does not support IPv4 TUN
+		if runtime.GOOS == "darwin" && ip.To4() != nil {
+			continue
+		}
+
 		if err = setIPAddress(a.tun.Name(), rawIP, ip.To4() != nil); err != nil {
 			return err
 		}
