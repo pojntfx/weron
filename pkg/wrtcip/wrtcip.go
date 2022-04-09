@@ -230,6 +230,7 @@ func (a *Adapter) Wait() error {
 					return
 				}
 
+				valid := false
 				peersLock.Lock()
 				for _, rawIP := range ips {
 					ip, net, err := net.ParseCIDR(rawIP)
@@ -242,8 +243,14 @@ func (a *Adapter) Wait() error {
 					}
 
 					peers[ip.String()] = &peerWithIP{peer, ip, net}
+
+					valid = true
 				}
 				peersLock.Unlock()
+
+				if !valid {
+					return
+				}
 
 				for {
 					buf := make([]byte, a.mtu+headerLength)
