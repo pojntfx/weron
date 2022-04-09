@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"net"
 	"net/url"
 	"runtime"
 	"strings"
@@ -19,7 +20,8 @@ var (
 	errMissingPassword  = errors.New("missing password")
 	errMissingKey       = errors.New("missing key")
 
-	errMissingIPs = errors.New("no IP(s) provided")
+	errMissingIPs  = errors.New("no IP(s) provided")
+	errInvalidCIDR = errors.New("invalid CIDR notation for IPs")
 )
 
 func main() {
@@ -53,6 +55,12 @@ func main() {
 
 	if strings.TrimSpace(*ips) == "" {
 		panic(errMissingIPs)
+	}
+
+	for _, ip := range strings.Split(*ips, ",") {
+		if _, _, err := net.ParseCIDR(ip); err != nil {
+			panic(errInvalidCIDR)
+		}
 	}
 
 	u, err := url.Parse(*raddr)
