@@ -31,6 +31,7 @@ func main() {
 	dev := flag.String("dev", "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
 	mac := flag.String("mac", "", "MAC address to give to the TAP device (i.e. 3a:f8:de:7b:ef:52) (default is auto-generated; only supported on Linux)")
 	parallel := flag.Int("parallel", runtime.NumCPU(), "Amount of threads to use to decode frames")
+	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -77,9 +78,10 @@ func main() {
 			},
 			Parallel: *parallel,
 			AdapterConfig: &wrtcconn.AdapterConfig{
-				Timeout: *timeout,
-				Verbose: *verbose,
-				ID:      *mac,
+				Timeout:    *timeout,
+				Verbose:    *verbose,
+				ID:         *mac,
+				ForceRelay: *relay,
 			},
 		},
 		ctx,

@@ -37,9 +37,10 @@ type Peer struct {
 }
 
 type AdapterConfig struct {
-	Timeout time.Duration
-	Verbose bool
-	ID      string
+	Timeout    time.Duration
+	Verbose    bool
+	ID         string
+	ForceRelay bool
 }
 
 type Adapter struct {
@@ -69,9 +70,10 @@ func NewAdapter(
 
 	if config == nil {
 		config = &AdapterConfig{
-			Timeout: time.Second * 10,
-			Verbose: false,
-			ID:      "",
+			Timeout:    time.Second * 10,
+			Verbose:    false,
+			ID:         "",
+			ForceRelay: false,
 		}
 	}
 
@@ -290,8 +292,14 @@ func (a *Adapter) Open() (chan string, error) {
 
 							iid := uuid.NewString()
 
+							transportPolicy := webrtc.ICETransportPolicyAll
+							if a.config.ForceRelay {
+								transportPolicy = webrtc.ICETransportPolicyRelay
+							}
+
 							c, err := webrtc.NewPeerConnection(webrtc.Configuration{
-								ICEServers: iceServers,
+								ICEServers:         iceServers,
+								ICETransportPolicy: transportPolicy,
 							})
 							if err != nil {
 								panic(err)
@@ -492,8 +500,14 @@ func (a *Adapter) Open() (chan string, error) {
 
 							iid := uuid.NewString()
 
+							transportPolicy := webrtc.ICETransportPolicyAll
+							if a.config.ForceRelay {
+								transportPolicy = webrtc.ICETransportPolicyRelay
+							}
+
 							c, err := webrtc.NewPeerConnection(webrtc.Configuration{
-								ICEServers: iceServers,
+								ICEServers:         iceServers,
+								ICETransportPolicy: transportPolicy,
 							})
 							if err != nil {
 								panic(err)
