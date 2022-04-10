@@ -54,6 +54,12 @@ jobs:
             flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
             cmd: ./Hydrunfile go wrtcip
             dst: out/*
+          - id: go
+            src: .
+            os: golang:bullseye
+            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
+            cmd: ./Hydrunfile go wrtcperf
+            dst: out/*
           # FIXME: This fails with `error: reference to undefined field or method 'HandshakeContext'`
           # - id: gccgo
           #   src: .

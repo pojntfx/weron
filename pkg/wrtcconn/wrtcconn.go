@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	ErrInvalidTURNServerAddr  = errors.New("invalid TURN server address")
-	ErrMissingTURNCredentials = errors.New("missing TURN server credentials")
+	ErrInvalidTURNServerAddr   = errors.New("invalid TURN server address")
+	ErrMissingTURNCredentials  = errors.New("missing TURN server credentials")
+	ErrMissingForcedTURNServer = errors.New("TURN is forced, but no TURN server has been configured")
 )
 
 type peer struct {
@@ -103,6 +104,7 @@ func (a *Adapter) Open() (chan string, error) {
 
 	iceServers := []webrtc.ICEServer{}
 
+	containsTURN := false
 	for _, ice := range a.ice {
 		// Skip empty server configs
 		if strings.TrimSpace(ice) == "" {
@@ -130,7 +132,13 @@ func (a *Adapter) Open() (chan string, error) {
 				Credential:     authParts[1],
 				CredentialType: webrtc.ICECredentialTypePassword,
 			})
+
+			containsTURN = true
 		}
+	}
+
+	if a.config.ForceRelay && !containsTURN {
+		return ids, ErrMissingForcedTURNServer
 	}
 
 	go func() {
