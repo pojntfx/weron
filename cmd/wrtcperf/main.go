@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"net/url"
 	"os"
@@ -97,6 +98,9 @@ func main() {
 	totalStart := time.Now()
 	ready := false
 
+	minSpeed := math.MaxFloat64
+	maxSpeed := float64(0)
+
 	s := make(chan os.Signal)
 	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -105,7 +109,7 @@ func main() {
 		if ready {
 			totalDuration := time.Since(totalStart)
 
-			fmt.Printf("Total: %v MB/s (%v MB written in %v)\n", (float64(totalTransferred)/totalDuration.Seconds())/1000000, totalTransferred/1000000, totalDuration)
+			fmt.Printf("Average: %v MB/s (%v MB written in %v) Min: %v MB/s Max: %v MB/s\n", (float64(totalTransferred)/totalDuration.Seconds())/1000000, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
 		}
 
 		os.Exit(0)
@@ -155,7 +159,17 @@ func main() {
 
 						duration := time.Since(start)
 
-						log.Printf("%v MB/s (%v MB written in %v)", (float64(written)/duration.Seconds())/1000000, written/1000000, duration)
+						speed := (float64(written) / duration.Seconds()) / 1000000
+
+						if speed < float64(minSpeed) {
+							minSpeed = speed
+						}
+
+						if speed > float64(maxSpeed) {
+							maxSpeed = speed
+						}
+
+						log.Printf("%v MB/s (%v MB written in %v)", speed, written/1000000, duration)
 
 						totalTransferred += written
 					}
@@ -187,7 +201,17 @@ func main() {
 
 						duration := time.Since(start)
 
-						log.Printf("%v MB/s (%v MB read in %v)", (float64(read)/duration.Seconds())/1000000, read/1000000, duration)
+						speed := (float64(read) / duration.Seconds()) / 1000000
+
+						if speed < float64(minSpeed) {
+							minSpeed = speed
+						}
+
+						if speed > float64(maxSpeed) {
+							maxSpeed = speed
+						}
+
+						log.Printf("%v MB/s (%v MB read in %v)", speed, read/1000000, duration)
 
 						totalTransferred += read
 					}
