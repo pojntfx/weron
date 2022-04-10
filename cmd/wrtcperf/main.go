@@ -117,11 +117,14 @@ func main() {
 		os.Exit(0)
 	}()
 
+	errs := make(chan error)
 	id := ""
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case err := <-errs:
+			panic(err)
 		case id = <-ids:
 			fmt.Printf("\r\u001b[0K%v.", id)
 		case peer := <-adapter.Accept():
@@ -143,12 +146,16 @@ func main() {
 						for i := 0; i < *packetCount; i++ {
 							buf := make([]byte, *packetLength)
 							if _, err := rand.Read(buf); err != nil {
-								panic(err)
+								errs <- err
+
+								return
 							}
 
 							n, err := peer.Conn.Write(buf)
 							if err != nil {
-								panic(err)
+								errs <- err
+
+								return
 							}
 
 							written += n
@@ -156,7 +163,9 @@ func main() {
 
 						buf := make([]byte, acklen)
 						if _, err := peer.Conn.Read(buf); err != nil {
-							panic(err)
+							errs <- err
+
+							return
 						}
 
 						duration := time.Since(start)
@@ -191,14 +200,18 @@ func main() {
 
 							n, err := peer.Conn.Read(buf)
 							if err != nil {
-								panic(err)
+								errs <- err
+
+								return
 							}
 
 							read += n
 						}
 
 						if _, err := peer.Conn.Write(make([]byte, acklen)); err != nil {
-							panic(err)
+							errs <- err
+
+							return
 						}
 
 						duration := time.Since(start)
