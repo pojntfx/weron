@@ -8,7 +8,10 @@ import (
 	"log"
 	"math/rand"
 	"net/url"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
@@ -90,6 +93,24 @@ func main() {
 		}
 	}()
 
+	totalTransferred := 0
+	totalStart := time.Now()
+	ready := false
+
+	s := make(chan os.Signal)
+	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-s
+
+		if ready {
+			totalDuration := time.Since(totalStart)
+
+			fmt.Printf("Total: %v MB/s (%v MB written in %v)\n", (float64(totalTransferred)/totalDuration.Seconds())/1000000, totalTransferred/1000000, totalDuration)
+		}
+
+		os.Exit(0)
+	}()
+
 	id := ""
 	for {
 		select {
@@ -99,6 +120,9 @@ func main() {
 			fmt.Printf("\r\u001b[0K%v.", id)
 		case peer := <-adapter.Accept():
 			fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
+
+			ready = true
+			totalStart = time.Now()
 
 			if *server {
 				go func() {
@@ -132,6 +156,8 @@ func main() {
 						duration := time.Since(start)
 
 						log.Printf("%v MB/s (%v MB written in %v)", (float64(written)/duration.Seconds())/1000000, written/1000000, duration)
+
+						totalTransferred += written
 					}
 				}()
 			} else {
@@ -162,6 +188,8 @@ func main() {
 						duration := time.Since(start)
 
 						log.Printf("%v MB/s (%v MB read in %v)", (float64(read)/duration.Seconds())/1000000, read/1000000, duration)
+
+						totalTransferred += read
 					}
 				}()
 			}
