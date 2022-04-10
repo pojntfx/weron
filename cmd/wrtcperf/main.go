@@ -109,7 +109,9 @@ func main() {
 		if ready {
 			totalDuration := time.Since(totalStart)
 
-			fmt.Printf("Average: %v MB/s (%v MB written in %v) Min: %v MB/s Max: %v MB/s\n", (float64(totalTransferred)/totalDuration.Seconds())/1000000, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
+			totalSpeed := (float64(totalTransferred) / totalDuration.Seconds()) / 1000000
+
+			fmt.Printf("Average: %.3f MB/s (%.3f Mb/s) (%v MB written in %v) Min: %.3f MB/s Max: %.3f MB/s\n", totalSpeed, totalSpeed*8, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
 		}
 
 		os.Exit(0)
@@ -169,7 +171,7 @@ func main() {
 							maxSpeed = speed
 						}
 
-						log.Printf("%v MB/s (%v MB written in %v)", speed, written/1000000, duration)
+						log.Printf("%.3f MB/s (%.3f Mb/s) (%v MB written in %v)", speed, speed*8, written/1000000, duration)
 
 						totalTransferred += written
 					}
@@ -211,7 +213,7 @@ func main() {
 							maxSpeed = speed
 						}
 
-						log.Printf("%v MB/s (%v MB read in %v)", speed, read/1000000, duration)
+						log.Printf("%.3f MB/s (%.3f Mb/s) (%v MB read in %v)", speed, speed*8, read/1000000, duration)
 
 						totalTransferred += read
 					}
