@@ -31,6 +31,7 @@ func main() {
 	username := flag.String("username", "", "Username to send messages as (default is auto-generated)")
 	channel := flag.String("channel", "primary", "Comma-seperated list of channel in community to join")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
+	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -68,9 +69,10 @@ func main() {
 		strings.Split(*ice, ","),
 		strings.Split(*channel, ","),
 		&wrtcconn.AdapterConfig{
-			Timeout: *timeout,
-			Verbose: *verbose,
-			ID:      *username,
+			Timeout:    *timeout,
+			Verbose:    *verbose,
+			ID:         *username,
+			ForceRelay: *relay,
 		},
 		ctx,
 	)

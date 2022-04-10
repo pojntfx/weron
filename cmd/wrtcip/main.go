@@ -34,6 +34,7 @@ func main() {
 	dev := flag.String("dev", "", "Name to give to the TUN device (i.e. weron0) (default is auto-generated; only supported on Linux and macOS)")
 	ips := flag.String("ips", "", "Comma-seperated list of IP addresses to give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported; on macOS, IPv4 addresses are ignored)")
 	parallel := flag.Int("parallel", runtime.NumCPU(), "Amount of threads to use to decode packets")
+	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -91,8 +92,9 @@ func main() {
 			IPs:      strings.Split(*ips, ","),
 			Parallel: *parallel,
 			AdapterConfig: &wrtcconn.AdapterConfig{
-				Timeout: *timeout,
-				Verbose: *verbose,
+				Timeout:    *timeout,
+				Verbose:    *verbose,
+				ForceRelay: *relay,
 			},
 		},
 		ctx,
