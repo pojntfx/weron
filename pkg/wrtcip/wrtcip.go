@@ -388,10 +388,8 @@ func (a *Adapter) Wait() error {
 								}
 							}
 
-							var d []byte
-							var err error
 							if duplicate {
-								d, err = json.Marshal(v1.NewRejection())
+								d, err := json.Marshal(v1.NewRejection())
 								if err != nil {
 									if a.config.Verbose {
 										log.Println("Could not marshal rejection, skipping")
