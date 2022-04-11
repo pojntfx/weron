@@ -11,6 +11,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/lib/pq v1.10.4
+	github.com/mitchellh/mapstructure v1.4.3
 	github.com/pion/webrtc/v3 v3.1.27
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/rubenv/sql-migrate v1.1.1

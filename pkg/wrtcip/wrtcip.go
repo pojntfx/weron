@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"io"
 	"log"
 	"net"
 	"runtime"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/mitchellh/mapstructure"
+	v1 "github.com/pojntfx/webrtcfd/pkg/api/webrtc/v1"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/songgao/water"
 	"golang.org/x/sync/semaphore"
@@ -19,6 +22,9 @@ import (
 
 const (
 	headerLength = 22
+
+	primaryChannelName = "wrtcip.primary"
+	controlChannelName = "wrtcip.control"
 )
 
 type AdapterConfig struct {
@@ -116,7 +122,7 @@ func (a *Adapter) Open() error {
 		a.signaler,
 		a.key,
 		strings.Split(strings.Join(a.ice, ","), ","),
-		[]string{"primary"},
+		[]string{primaryChannelName, controlChannelName},
 		a.config.AdapterConfig,
 		a.ctx,
 	)
@@ -202,81 +208,222 @@ func (a *Adapter) Wait() error {
 		}
 	}()
 
+	id := ""
 	for {
 		select {
 		case <-a.ctx.Done():
 			return nil
-		case id := <-a.ids:
+		case rid := <-a.ids:
 			if a.config.OnSignalerConnect != nil {
-				a.config.OnSignalerConnect(id)
+				a.config.OnSignalerConnect(rid)
 			}
 
 			if err := setLinkUp(a.tun.Name()); err != nil {
 				return err
 			}
+
+			id = rid
 		case peer := <-a.adapter.Accept():
-			if a.config.OnPeerConnect != nil {
-				a.config.OnPeerConnect(peer.PeerID)
-			}
-
-			go func() {
-				defer func() {
-					if a.config.OnPeerDisconnected != nil {
-						a.config.OnPeerDisconnected(peer.PeerID)
+			switch peer.ChannelID {
+			case primaryChannelName:
+				go func() {
+					if a.config.OnPeerConnect != nil {
+						a.config.OnPeerConnect(peer.PeerID)
 					}
 
-					peersLock.Lock()
-					delete(peers, peer.PeerID)
-					peersLock.Unlock()
-				}()
-
-				ips := []string{}
-				if err := json.Unmarshal([]byte(peer.PeerID), &ips); err != nil {
-					return
-				}
-
-				valid := false
-				peersLock.Lock()
-				for _, rawIP := range ips {
-					ip, net, err := net.ParseCIDR(rawIP)
-					if err != nil {
+					ips := []string{}
+					if err := json.Unmarshal([]byte(peer.PeerID), &ips); err != nil {
 						if a.config.Verbose {
-							log.Println("Could not parse IP address, skipping")
-						}
-
-						continue
-					}
-
-					peers[ip.String()] = &peerWithIP{peer, ip, net}
-
-					valid = true
-				}
-				peersLock.Unlock()
-
-				if !valid {
-					return
-				}
-
-				for {
-					buf := make([]byte, a.mtu+headerLength)
-
-					if _, err := peer.Conn.Read(buf); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not read from peer, stopping")
+							log.Println("Could not parse local IP addresses, skipping")
 						}
 
 						return
 					}
 
-					if _, err := a.tun.Write(buf); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not write to TUN device, skipping")
+					valid := false
+					peersLock.Lock()
+					for _, rawIP := range ips {
+						ip, net, err := net.ParseCIDR(rawIP)
+						if err != nil {
+							if a.config.Verbose {
+								log.Println("Could not parse IP address, skipping")
+							}
+
+							continue
 						}
 
-						continue
+						peers[ip.String()] = &peerWithIP{peer, ip, net}
+
+						valid = true
 					}
+					peersLock.Unlock()
+
+					defer func() {
+						if a.config.OnPeerDisconnected != nil {
+							a.config.OnPeerDisconnected(peer.PeerID)
+						}
+
+						peersLock.Lock()
+						for _, ip := range ips {
+							delete(peers, ip)
+						}
+						peersLock.Unlock()
+					}()
+
+					if !valid {
+						if a.config.Verbose {
+							log.Println("Got peer with invalid IP addresses, skipping")
+						}
+
+						return
+					}
+
+					for {
+						buf := make([]byte, a.mtu+headerLength)
+
+						if _, err := peer.Conn.Read(buf); err != nil {
+							if a.config.Verbose {
+								log.Println("Could not read from peer, stopping")
+							}
+
+							return
+						}
+
+						if _, err := a.tun.Write(buf); err != nil {
+							if a.config.Verbose {
+								log.Println("Could not write to TUN device, skipping")
+							}
+
+							continue
+						}
+					}
+				}()
+			case controlChannelName:
+				go func() {
+					defer func() {
+						// Handle JSON parser errors when reading from connection
+						if err := recover(); err != nil {
+							if a.config.Verbose {
+								log.Println("Could not read from peer, stopping")
+
+								return
+							}
+						}
+					}()
+
+					for {
+						d := json.NewDecoder(peer.Conn)
+
+						var j interface{}
+						if err := d.Decode(&j); err != nil {
+							if err == io.EOF {
+								if a.config.Verbose {
+									log.Println("Could not read from peer, stopping")
+								}
+
+								return
+							}
+
+							if a.config.Verbose {
+								log.Println("Could not read from peer, skipping")
+							}
+
+							continue
+						}
+
+						var message v1.Message
+						if err := mapstructure.Decode(j, &message); err != nil {
+							if a.config.Verbose {
+								log.Println("Could not parse message from peer, skipping")
+							}
+
+							continue
+						}
+
+						switch message.Type {
+						case v1.TypeApplication:
+							var application v1.Application
+							if err := mapstructure.Decode(j, &application); err != nil {
+								if a.config.Verbose {
+									log.Println("Could not parse message from peer, skipping")
+								}
+
+								continue
+							}
+
+							ips := []string{}
+							if err := json.Unmarshal([]byte(id), &ips); err != nil {
+								if a.config.Verbose {
+									log.Println("Could not parse local IP addresses, skipping")
+								}
+
+								continue
+							}
+
+							duplicate := false
+						l:
+							for _, rawLocalIP := range ips {
+								localIP, _, err := net.ParseCIDR(rawLocalIP)
+								if err != nil {
+									if a.config.Verbose {
+										log.Println("Could not parse IP address, skipping")
+									}
+
+									break l
+								}
+
+								for _, rawRemoteIP := range application.IPs {
+									remoteIP, _, err := net.ParseCIDR(rawRemoteIP)
+									if err != nil {
+										if a.config.Verbose {
+											log.Println("Could not parse remote address, skipping")
+										}
+
+										break l
+									}
+
+									if localIP.Equal(remoteIP) {
+										duplicate = true
+									}
+								}
+							}
+
+							var d []byte
+							var err error
+							if duplicate {
+								d, err = json.Marshal(v1.NewRejection())
+								if err != nil {
+									if a.config.Verbose {
+										log.Println("Could not marshal rejection, skipping")
+									}
+
+									continue
+								}
+
+								if _, err := peer.Conn.Write([]byte(string(d) + "\n")); err != nil {
+									if a.config.Verbose {
+										log.Println("Could not write to peer, skipping")
+									}
+
+									continue
+								}
+							}
+						default:
+							if a.config.Verbose {
+								log.Println("Got unknown message type, skipping")
+							}
+
+							continue
+						}
+					}
+				}()
+			default:
+				if a.config.Verbose {
+					log.Println("Got unknown channel name, skipping")
 				}
-			}()
+
+				continue
+			}
 		}
 	}
 }
