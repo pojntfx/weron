@@ -398,7 +398,7 @@ func (a *Adapter) Wait() error {
 									continue
 								}
 
-								if _, err := peer.Conn.Write([]byte(string(d) + "\n")); err != nil {
+								if _, err := peer.Conn.Write(d); err != nil {
 									if a.config.Verbose {
 										log.Println("Could not write to peer, skipping")
 									}

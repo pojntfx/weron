@@ -40,7 +40,6 @@ type Peer struct {
 type AdapterConfig struct {
 	Timeout    time.Duration
 	Verbose    bool
-	ID         string
 	ForceRelay bool
 }
 
@@ -73,7 +72,6 @@ func NewAdapter(
 		config = &AdapterConfig{
 			Timeout:    time.Second * 10,
 			Verbose:    false,
-			ID:         "",
 			ForceRelay: false,
 		}
 	}
@@ -231,10 +229,7 @@ func (a *Adapter) Open() (chan string, error) {
 					}
 				}()
 
-				id := a.config.ID
-				if strings.TrimSpace(id) == "" {
-					id = uuid.New().String()
-				}
+				id := uuid.New().String()
 
 				ids <- id
 
