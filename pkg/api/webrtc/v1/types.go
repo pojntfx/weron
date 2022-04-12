@@ -1,7 +1,6 @@
-package wrtcchat
+package v1
 
 const (
 	TypeApplication = "application"
 	TypeRejection   = "rejection"
-	TypeAcceptance  = "acceptance"
 )
