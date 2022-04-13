@@ -31,7 +31,7 @@ func main() {
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
 	username := flag.String("username", "", "Username to send messages as (default is auto-generated)")
-	channel := flag.String("channel", "wrtcchat", "Comma-seperated list of channel in community to join")
+	channel := flag.String("channel", "wrtcid", "Comma-seperated list of channel in community to join")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
 	kicks := flag.Duration("kicks", time.Second*5, "Time to wait for kicks")
@@ -54,7 +54,7 @@ func main() {
 		panic(errMissingKey)
 	}
 
-	fmt.Printf("\r\u001b[0K.%v\n", *raddr)
+	fmt.Printf(".%v\n", *raddr)
 
 	u, err := url.Parse(*raddr)
 	if err != nil {
@@ -92,16 +92,19 @@ func main() {
 	ready := time.After(*kicks)
 	oid := ""
 	timestamp := time.Now().UnixNano()
+	errs := make(chan error)
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case err := <-errs:
+			panic(err)
 		case id := <-ids:
-			fmt.Printf("\r\u001b[0K%v.", id)
+			fmt.Printf("%v.\n", id)
 			ready = time.After(*kicks)
 		case <-ready:
 			oid = *username
-			fmt.Printf("\r\u001b[0K%v!", oid)
+			fmt.Printf("%v!\n", oid)
 		case peer := <-adapter.Accept():
 			e := json.NewEncoder(peer.Conn)
 			d := json.NewDecoder(peer.Conn)
@@ -110,7 +113,16 @@ func main() {
 				rid := ""
 				defer func() {
 					if rid != "" {
-						fmt.Printf("\r\u001b[0K-%v@%v\n", rid, peer.ChannelID)
+						fmt.Printf("-%v@%v\n", rid, peer.ChannelID)
+					}
+
+					// Handle JSON parser errors when reading/writing from connection
+					if err := recover(); err != nil {
+						if *verbose {
+							log.Println("Could not read/write from peer, stopping")
+
+							return
+						}
 					}
 				}()
 
@@ -146,7 +158,9 @@ func main() {
 
 						if gng.ID == *username {
 							if oid == "" && gng.Timestamp < timestamp {
-								panic(errKicked)
+								errs <- errKicked
+
+								return
 							} else {
 								if err := e.Encode(v1.NewKick()); err != nil {
 									if *verbose {
@@ -170,7 +184,7 @@ func main() {
 
 						rid = gng.ID
 
-						fmt.Printf("\r\u001b[0K+%v@%v\n", rid, peer.ChannelID)
+						fmt.Printf("+%v@%v\n", rid, peer.ChannelID)
 					case v1.TypeWelcome:
 						var wlc v1.Welcome
 						if err := mapstructure.Decode(j, &wlc); err != nil {
@@ -183,9 +197,11 @@ func main() {
 
 						rid = wlc.ID
 
-						fmt.Printf("\r\u001b[0K+%v@%v\n", rid, peer.ChannelID)
+						fmt.Printf("+%v@%v\n", rid, peer.ChannelID)
 					case v1.TypeKick:
-						panic(errKicked)
+						errs <- errKicked
+
+						return
 					default:
 						if *verbose {
 							log.Println("Could not handle unknown message type from peer, skipping")

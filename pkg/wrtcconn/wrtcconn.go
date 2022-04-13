@@ -410,7 +410,17 @@ func (a *Adapter) Open() (chan string, error) {
 
 									peerLock.Lock()
 									defer peerLock.Unlock()
-									channel, ok := peers[introduction.From].channels[dc.Label()]
+									peer, ok := peers[introduction.From]
+									if !ok {
+										if a.config.Verbose {
+											log.Println("Could not find peer", introduction.From, ", skipping")
+
+										}
+
+										return
+									}
+
+									channel, ok := peer.channels[dc.Label()]
 									if !ok {
 										if a.config.Verbose {
 											log.Println("Could not find channel", dc.Label(), "for peer", introduction.From, ", skipping")
