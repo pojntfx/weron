@@ -20,6 +20,7 @@ var (
 	errMissingPassword  = errors.New("missing password")
 
 	errMissingKey = errors.New("missing key")
+	errKicked     = errors.New("kicked")
 )
 
 const (
@@ -126,46 +127,61 @@ func main() {
 			oid = *username
 			fmt.Printf("\r\u001b[0K%v!", oid)
 		case peer := <-adapter.Accept():
-			fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
-			fmt.Printf("\r\u001b[0K%v@%v> ", oid, peer.ChannelID)
-
 			e := json.NewEncoder(peer.Conn)
 			d := json.NewDecoder(peer.Conn)
 
 			go func() {
+				rid := ""
 				defer func() {
-					fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-					fmt.Printf("\r\u001b[0K%v@%v> ", oid, peer.ChannelID)
+					if rid != "" {
+						fmt.Printf("\r\u001b[0K-%v@%v\n", rid, peer.ChannelID)
+					}
 				}()
 
 				for {
 					var j interface{}
 					if err := d.Decode(&j); err != nil {
-						panic(err)
+						if *verbose {
+							log.Println("Could not read from peer, stopping")
+						}
+
+						return
 					}
 
 					var msg message
 					if err := mapstructure.Decode(j, &msg); err != nil {
-						panic(err)
+						if *verbose {
+							log.Println("Could not decode from peer, skipping")
+						}
+
+						continue
 					}
 
 					switch msg.Type {
 					case typeGreeting:
 						var gng greeting
 						if err := mapstructure.Decode(j, &gng); err != nil {
-							panic(err)
+							if *verbose {
+								log.Println("Could not decode from peer, skipping")
+							}
+
+							continue
 						}
 
 						if gng.ID == *username {
 							if oid == "" && gng.Timestamp < timestamp {
-								panic("kicked")
+								panic(errKicked)
 							} else {
 								if err := e.Encode(kick{
 									message: &message{
 										Type: typeKick,
 									},
 								}); err != nil {
-									panic(err)
+									if *verbose {
+										log.Println("Could not send to peer, stopping")
+									}
+
+									return
 								}
 
 								continue
@@ -178,21 +194,37 @@ func main() {
 							},
 							ID: *username,
 						}); err != nil {
-							panic(err)
+							if *verbose {
+								log.Println("Could not send to peer, stopping")
+							}
+
+							return
 						}
 
-						log.Println("Added peer", gng.ID)
+						rid = gng.ID
+
+						fmt.Printf("\r\u001b[0K+%v@%v\n", rid, peer.ChannelID)
 					case typeWelcome:
 						var wlc welcome
 						if err := mapstructure.Decode(j, &wlc); err != nil {
-							panic(err)
+							if *verbose {
+								log.Println("Could not decode from peer, skipping")
+							}
+
+							continue
 						}
 
-						log.Println("Added peer", wlc.ID)
+						rid = wlc.ID
+
+						fmt.Printf("\r\u001b[0K+%v@%v\n", rid, peer.ChannelID)
 					case typeKick:
-						panic("kicked")
+						panic(errKicked)
 					default:
-						panic("unknown message type")
+						if *verbose {
+							log.Println("Could not handle unknown message type from peer, skipping")
+						}
+
+						continue
 					}
 				}
 			}()
@@ -204,7 +236,11 @@ func main() {
 				ID:        *username,
 				Timestamp: timestamp,
 			}); err != nil {
-				panic(err)
+				if *verbose {
+					log.Println("Could not send to peer, stopping")
+				}
+
+				return
 			}
 		}
 	}
