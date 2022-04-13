@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
+	v1 "github.com/pojntfx/webrtcfd/pkg/api/webrtc/v1"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 )
 
@@ -22,31 +23,6 @@ var (
 	errMissingKey = errors.New("missing key")
 	errKicked     = errors.New("kicked")
 )
-
-const (
-	typeGreeting = "greeting"
-	typeKick     = "kick"
-	typeWelcome  = "welcome"
-)
-
-type message struct {
-	Type string `json:"type"`
-}
-
-type greeting struct {
-	*message
-	ID        string `json:"id"`
-	Timestamp int64  `json:"timestamp"`
-}
-
-type welcome struct {
-	*message
-	ID string `json:"id"`
-}
-
-type kick struct {
-	*message
-}
 
 func main() {
 	raddr := flag.String("raddr", "wss://webrtcfd.herokuapp.com/", "Remote address")
@@ -148,7 +124,7 @@ func main() {
 						return
 					}
 
-					var msg message
+					var msg v1.Message
 					if err := mapstructure.Decode(j, &msg); err != nil {
 						if *verbose {
 							log.Println("Could not decode from peer, skipping")
@@ -158,8 +134,8 @@ func main() {
 					}
 
 					switch msg.Type {
-					case typeGreeting:
-						var gng greeting
+					case v1.TypeGreeting:
+						var gng v1.Greeting
 						if err := mapstructure.Decode(j, &gng); err != nil {
 							if *verbose {
 								log.Println("Could not decode from peer, skipping")
@@ -172,11 +148,7 @@ func main() {
 							if oid == "" && gng.Timestamp < timestamp {
 								panic(errKicked)
 							} else {
-								if err := e.Encode(kick{
-									message: &message{
-										Type: typeKick,
-									},
-								}); err != nil {
+								if err := e.Encode(v1.NewKick()); err != nil {
 									if *verbose {
 										log.Println("Could not send to peer, stopping")
 									}
@@ -188,12 +160,7 @@ func main() {
 							}
 						}
 
-						if err := e.Encode(welcome{
-							message: &message{
-								Type: typeWelcome,
-							},
-							ID: *username,
-						}); err != nil {
+						if err := e.Encode(v1.NewWelcome(*username)); err != nil {
 							if *verbose {
 								log.Println("Could not send to peer, stopping")
 							}
@@ -204,8 +171,8 @@ func main() {
 						rid = gng.ID
 
 						fmt.Printf("\r\u001b[0K+%v@%v\n", rid, peer.ChannelID)
-					case typeWelcome:
-						var wlc welcome
+					case v1.TypeWelcome:
+						var wlc v1.Welcome
 						if err := mapstructure.Decode(j, &wlc); err != nil {
 							if *verbose {
 								log.Println("Could not decode from peer, skipping")
@@ -217,7 +184,7 @@ func main() {
 						rid = wlc.ID
 
 						fmt.Printf("\r\u001b[0K+%v@%v\n", rid, peer.ChannelID)
-					case typeKick:
+					case v1.TypeKick:
 						panic(errKicked)
 					default:
 						if *verbose {
@@ -229,13 +196,7 @@ func main() {
 				}
 			}()
 
-			if err := e.Encode(greeting{
-				message: &message{
-					Type: typeGreeting,
-				},
-				ID:        *username,
-				Timestamp: timestamp,
-			}); err != nil {
+			if err := e.Encode(v1.NewGreeting(*username, timestamp)); err != nil {
 				if *verbose {
 					log.Println("Could not send to peer, stopping")
 				}
