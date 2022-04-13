@@ -1,27 +1,43 @@
 package v1
 
-type Application struct {
+type Greeting struct {
 	Message
-	IPs []string `json:"ips"`
+	ID        string `json:"id"`
+	Timestamp int64  `json:"timestamp"`
 }
 
-func NewApplication(ips []string) *Application {
-	return &Application{
+func NewGreeting(id string, timestamp int64) *Greeting {
+	return &Greeting{
 		Message: Message{
-			Type: TypeApplication,
+			Type: TypeGreeting,
 		},
-		IPs: ips,
+		ID:        id,
+		Timestamp: timestamp,
 	}
 }
 
-type Rejection struct {
+type Kick struct {
 	Message
 }
 
-func NewRejection() *Rejection {
-	return &Rejection{
+func NewKick() *Kick {
+	return &Kick{
 		Message: Message{
-			Type: TypeRejection,
+			Type: TypeKick,
 		},
+	}
+}
+
+type Welcome struct {
+	Message
+	ID string `json:"id"`
+}
+
+func NewWelcome(id string) *Welcome {
+	return &Welcome{
+		Message: Message{
+			Type: TypeWelcome,
+		},
+		ID: id,
 	}
 }

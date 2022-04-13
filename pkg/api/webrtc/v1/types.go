@@ -1,6 +1,7 @@
 package v1
 
 const (
-	TypeApplication = "application"
-	TypeRejection   = "rejection"
+	TypeGreeting = "greeting"
+	TypeKick     = "kick"
+	TypeWelcome  = "welcome"
 )
