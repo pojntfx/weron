@@ -155,19 +155,15 @@ func main() {
 
 				greet := func() {
 					if id == "" {
-						candidatesLock.Lock()
-						for candidate := range candidates {
-							if err := e.Encode(v1.NewGreeting(candidate, timestamp)); err != nil {
-								if *verbose {
-									log.Println("Could not send to peer, stopping")
-								}
-
-								return
+						if err := e.Encode(v1.NewGreeting(candidates, timestamp)); err != nil {
+							if *verbose {
+								log.Println("Could not send to peer, stopping")
 							}
+
+							return
 						}
-						candidatesLock.Unlock()
 					} else {
-						if err := e.Encode(v1.NewGreeting(id, timestamp)); err != nil {
+						if err := e.Encode(v1.NewGreeting(map[string]struct{}{id: {}}, timestamp)); err != nil {
 							if *verbose {
 								log.Println("Could not send to peer, stopping")
 							}
@@ -210,19 +206,21 @@ func main() {
 							continue
 						}
 
-						if _, ok := candidates[gng.ID]; id == "" && ok && timestamp < gng.Timestamp {
-							if err := e.Encode(v1.NewBackoff()); err != nil {
-								if *verbose {
-									log.Println("Could not send to peer, stopping")
+						for gngID := range gng.IDs {
+							if _, ok := candidates[gngID]; id == "" && ok && timestamp < gng.Timestamp {
+								if err := e.Encode(v1.NewBackoff()); err != nil {
+									if *verbose {
+										log.Println("Could not send to peer, stopping")
+									}
+
+									return
 								}
 
-								return
+								continue l
 							}
-
-							continue
 						}
 
-						if id == gng.ID {
+						if _, ok := gng.IDs[id]; ok {
 							if err := e.Encode(v1.NewKick(id)); err != nil {
 								if *verbose {
 									log.Println("Could not send to peer, stopping")
