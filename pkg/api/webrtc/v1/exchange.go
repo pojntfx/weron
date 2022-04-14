@@ -2,15 +2,17 @@ package v1
 
 type Greeting struct {
 	Message
-	ID string `json:"id"`
+	ID        string `json:"id"`
+	Timestamp int64  `json:"timestamp"`
 }
 
-func NewGreeting(id string) *Greeting {
+func NewGreeting(id string, timestamp int64) *Greeting {
 	return &Greeting{
 		Message: Message{
 			Type: TypeGreeting,
 		},
-		ID: id,
+		ID:        id,
+		Timestamp: timestamp,
 	}
 }
 
@@ -25,5 +27,17 @@ func NewKick(id string) *Kick {
 			Type: TypeKick,
 		},
 		ID: id,
+	}
+}
+
+type Backoff struct {
+	Message
+}
+
+func NewBackoff() *Backoff {
+	return &Backoff{
+		Message: Message{
+			Type: TypeBackoff,
+		},
 	}
 }

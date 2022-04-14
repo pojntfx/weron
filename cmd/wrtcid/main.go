@@ -37,7 +37,7 @@ func main() {
 	channel := flag.String("channel", "wrtcid", "Comma-seperated list of channel in community to join")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
-	kicks := flag.Duration("kicks", time.Second*10, "Time to wait for kicks")
+	kicks := flag.Duration("kicks", time.Second*5, "Time to wait for kicks")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -99,6 +99,7 @@ func main() {
 	var candidatesLock sync.Mutex
 	candidates := map[string]struct{}{}
 	id := ""
+	timestamp := time.Now().UnixNano()
 
 	ready := time.NewTimer(*timeout + *kicks)
 	errs := make(chan error)
@@ -108,14 +109,16 @@ func main() {
 			return
 		case err := <-errs:
 			panic(err)
-		case id := <-ids:
+		case sid := <-ids:
 			candidatesLock.Lock()
+			candidates = map[string]struct{}{}
 			for _, username := range strings.Split(*usernames, ",") {
 				candidates[username] = struct{}{}
 			}
+			id = ""
 			candidatesLock.Unlock()
 
-			fmt.Printf("%v.\n", id)
+			fmt.Printf("%v.\n", sid)
 
 			ready.Stop()
 			ready.Reset(*kicks)
@@ -127,7 +130,6 @@ func main() {
 
 				break
 			}
-
 			candidates = map[string]struct{}{}
 			candidatesLock.Unlock()
 
@@ -151,10 +153,21 @@ func main() {
 					}
 				}()
 
-				if id == "" {
-					candidatesLock.Lock()
-					for candidate := range candidates {
-						if err := e.Encode(v1.NewGreeting(candidate)); err != nil {
+				greet := func() {
+					if id == "" {
+						candidatesLock.Lock()
+						for candidate := range candidates {
+							if err := e.Encode(v1.NewGreeting(candidate, timestamp)); err != nil {
+								if *verbose {
+									log.Println("Could not send to peer, stopping")
+								}
+
+								return
+							}
+						}
+						candidatesLock.Unlock()
+					} else {
+						if err := e.Encode(v1.NewGreeting(id, timestamp)); err != nil {
 							if *verbose {
 								log.Println("Could not send to peer, stopping")
 							}
@@ -162,16 +175,9 @@ func main() {
 							return
 						}
 					}
-					candidatesLock.Unlock()
-				} else {
-					if err := e.Encode(v1.NewGreeting(id)); err != nil {
-						if *verbose {
-							log.Println("Could not send to peer, stopping")
-						}
-
-						return
-					}
 				}
+
+				greet()
 
 			l:
 				for {
@@ -204,6 +210,18 @@ func main() {
 							continue
 						}
 
+						if _, ok := candidates[gng.ID]; id == "" && ok && timestamp < gng.Timestamp {
+							if err := e.Encode(v1.NewBackoff()); err != nil {
+								if *verbose {
+									log.Println("Could not send to peer, stopping")
+								}
+
+								return
+							}
+
+							continue
+						}
+
 						if id == gng.ID {
 							if err := e.Encode(v1.NewKick(id)); err != nil {
 								if *verbose {
@@ -228,6 +246,14 @@ func main() {
 						candidatesLock.Unlock()
 
 						break l
+					case v1.TypeBackoff:
+						ready.Stop()
+
+						time.Sleep(*kicks)
+
+						greet()
+
+						ready.Reset(*kicks)
 					default:
 						if *verbose {
 							log.Println("Could not handle unknown message type from peer, skipping")
