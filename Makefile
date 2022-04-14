@@ -5,7 +5,7 @@ OUTPUT_DIR ?= out
 DST ?=
 
 # Private variables
-obj = wrtcsgl wrtcchat wrtcmgr wrtctkn wrtceth wrtcip wrtcperf
+obj = wrtcsgl wrtcchat wrtcmgr wrtctkn wrtceth wrtcip wrtcperf wrtcid
 all: $(addprefix build/,$(obj))
 
 # Build
