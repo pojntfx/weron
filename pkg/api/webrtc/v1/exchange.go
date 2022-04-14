@@ -2,17 +2,15 @@ package v1
 
 type Greeting struct {
 	Message
-	ID        string `json:"id"`
-	Timestamp int64  `json:"timestamp"`
+	ID string `json:"id"`
 }
 
-func NewGreeting(id string, timestamp int64) *Greeting {
+func NewGreeting(id string) *Greeting {
 	return &Greeting{
 		Message: Message{
 			Type: TypeGreeting,
 		},
-		ID:        id,
-		Timestamp: timestamp,
+		ID: id,
 	}
 }
 

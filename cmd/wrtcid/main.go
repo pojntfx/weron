@@ -36,7 +36,7 @@ func main() {
 	channel := flag.String("channel", "wrtcid", "Comma-seperated list of channel in community to join")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
-	kicks := flag.Duration("kicks", time.Second*5, "Time to wait for kicks")
+	kicks := flag.Duration("kicks", time.Second*10, "Time to wait for kicks")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -97,8 +97,7 @@ func main() {
 
 	candidates := map[string]struct{}{}
 	oid := ""
-	ready := time.After(*timeout + *kicks)
-	timestamp := time.Now().UnixNano()
+	ready := time.NewTimer(*timeout + *kicks)
 	errs := make(chan error)
 	for {
 		select {
@@ -112,7 +111,10 @@ func main() {
 			}
 
 			fmt.Printf("%v.\n", id)
-		case <-ready:
+
+			ready.Stop()
+			ready.Reset(*kicks)
+		case <-ready.C:
 			for username := range candidates {
 				oid = username
 
@@ -132,7 +134,6 @@ func main() {
 
 			go func() {
 				defer func() {
-					// Handle JSON parser errors when reading/writing from connection
 					if err := recover(); err != nil {
 						if *verbose {
 							log.Println("Could not read/write from peer, stopping")
@@ -144,7 +145,7 @@ func main() {
 
 				if oid == "" {
 					for _, username := range strings.Split(*usernames, ",") {
-						if err := e.Encode(v1.NewGreeting(username, timestamp)); err != nil {
+						if err := e.Encode(v1.NewGreeting(username)); err != nil {
 							if *verbose {
 								log.Println("Could not send to peer, stopping")
 							}
@@ -153,7 +154,7 @@ func main() {
 						}
 					}
 				} else {
-					if err := e.Encode(v1.NewGreeting(oid, timestamp)); err != nil {
+					if err := e.Encode(v1.NewGreeting(oid)); err != nil {
 						if *verbose {
 							log.Println("Could not send to peer, stopping")
 						}
@@ -193,11 +194,7 @@ func main() {
 							continue
 						}
 
-						if oid == "" && gng.Timestamp < timestamp {
-							delete(candidates, gng.ID)
-
-							break l
-						} else if oid == gng.ID {
+						if oid == gng.ID {
 							if err := e.Encode(v1.NewKick(oid)); err != nil {
 								if *verbose {
 									log.Println("Could not send to peer, stopping")
@@ -205,8 +202,6 @@ func main() {
 
 								return
 							}
-
-							continue
 						}
 					case v1.TypeKick:
 						var kck v1.Kick
