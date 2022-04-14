@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -95,8 +96,10 @@ func main() {
 		}
 	}()
 
+	var candidatesLock sync.Mutex
 	candidates := map[string]struct{}{}
-	oid := ""
+	id := ""
+
 	ready := time.NewTimer(*timeout + *kicks)
 	errs := make(chan error)
 	for {
@@ -106,28 +109,33 @@ func main() {
 		case err := <-errs:
 			panic(err)
 		case id := <-ids:
+			candidatesLock.Lock()
 			for _, username := range strings.Split(*usernames, ",") {
 				candidates[username] = struct{}{}
 			}
+			candidatesLock.Unlock()
 
 			fmt.Printf("%v.\n", id)
 
 			ready.Stop()
 			ready.Reset(*kicks)
+
 		case <-ready.C:
+			candidatesLock.Lock()
 			for username := range candidates {
-				oid = username
+				id = username
 
 				break
 			}
 
 			candidates = map[string]struct{}{}
+			candidatesLock.Unlock()
 
-			if oid == "" {
+			if id == "" {
 				panic(errAllUsernamesClaimed)
 			}
 
-			fmt.Printf("%v!\n", oid)
+			fmt.Printf("%v!\n", id)
 		case peer := <-adapter.Accept():
 			e := json.NewEncoder(peer.Conn)
 			d := json.NewDecoder(peer.Conn)
@@ -143,9 +151,10 @@ func main() {
 					}
 				}()
 
-				if oid == "" {
-					for _, username := range strings.Split(*usernames, ",") {
-						if err := e.Encode(v1.NewGreeting(username)); err != nil {
+				if id == "" {
+					candidatesLock.Lock()
+					for candidate := range candidates {
+						if err := e.Encode(v1.NewGreeting(candidate)); err != nil {
 							if *verbose {
 								log.Println("Could not send to peer, stopping")
 							}
@@ -153,8 +162,9 @@ func main() {
 							return
 						}
 					}
+					candidatesLock.Unlock()
 				} else {
-					if err := e.Encode(v1.NewGreeting(oid)); err != nil {
+					if err := e.Encode(v1.NewGreeting(id)); err != nil {
 						if *verbose {
 							log.Println("Could not send to peer, stopping")
 						}
@@ -194,8 +204,8 @@ func main() {
 							continue
 						}
 
-						if oid == gng.ID {
-							if err := e.Encode(v1.NewKick(oid)); err != nil {
+						if id == gng.ID {
+							if err := e.Encode(v1.NewKick(id)); err != nil {
 								if *verbose {
 									log.Println("Could not send to peer, stopping")
 								}
@@ -213,7 +223,9 @@ func main() {
 							continue
 						}
 
+						candidatesLock.Lock()
 						delete(candidates, kck.ID)
+						candidatesLock.Unlock()
 
 						break l
 					default:
