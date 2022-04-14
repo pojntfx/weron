@@ -20,8 +20,10 @@ var (
 	errMissingCommunity = errors.New("missing community")
 	errMissingPassword  = errors.New("missing password")
 
-	errMissingKey = errors.New("missing key")
-	errKicked     = errors.New("kicked")
+	errMissingKey       = errors.New("missing key")
+	errMissingUsernames = errors.New("missing usernames")
+
+	errAllUsernamesClaimed = errors.New("all specified usernames are already claimed")
 )
 
 func main() {
@@ -30,7 +32,7 @@ func main() {
 	community := flag.String("community", "", "ID of community to join")
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
-	username := flag.String("username", "", "Username to send messages as (default is auto-generated)")
+	usernames := flag.String("usernames", "", "Comma-seperated list of username to try and claim")
 	channel := flag.String("channel", "wrtcid", "Comma-seperated list of channel in community to join")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
@@ -52,6 +54,10 @@ func main() {
 
 	if strings.TrimSpace(*key) == "" {
 		panic(errMissingKey)
+	}
+
+	if strings.TrimSpace(*usernames) == "" {
+		panic(errMissingUsernames)
 	}
 
 	fmt.Printf(".%v\n", *raddr)
@@ -89,8 +95,9 @@ func main() {
 		}
 	}()
 
-	ready := time.After(*kicks)
+	candidates := map[string]struct{}{}
 	oid := ""
+	ready := time.After(*timeout + *kicks)
 	timestamp := time.Now().UnixNano()
 	errs := make(chan error)
 	for {
@@ -100,22 +107,31 @@ func main() {
 		case err := <-errs:
 			panic(err)
 		case id := <-ids:
+			for _, username := range strings.Split(*usernames, ",") {
+				candidates[username] = struct{}{}
+			}
+
 			fmt.Printf("%v.\n", id)
-			ready = time.After(*kicks)
 		case <-ready:
-			oid = *username
+			for username := range candidates {
+				oid = username
+
+				break
+			}
+
+			candidates = map[string]struct{}{}
+
+			if oid == "" {
+				panic(errAllUsernamesClaimed)
+			}
+
 			fmt.Printf("%v!\n", oid)
 		case peer := <-adapter.Accept():
 			e := json.NewEncoder(peer.Conn)
 			d := json.NewDecoder(peer.Conn)
 
 			go func() {
-				rid := ""
 				defer func() {
-					if rid != "" {
-						fmt.Printf("-%v@%v\n", rid, peer.ChannelID)
-					}
-
 					// Handle JSON parser errors when reading/writing from connection
 					if err := recover(); err != nil {
 						if *verbose {
@@ -126,6 +142,27 @@ func main() {
 					}
 				}()
 
+				if oid == "" {
+					for _, username := range strings.Split(*usernames, ",") {
+						if err := e.Encode(v1.NewGreeting(username, timestamp)); err != nil {
+							if *verbose {
+								log.Println("Could not send to peer, stopping")
+							}
+
+							return
+						}
+					}
+				} else {
+					if err := e.Encode(v1.NewGreeting(oid, timestamp)); err != nil {
+						if *verbose {
+							log.Println("Could not send to peer, stopping")
+						}
+
+						return
+					}
+				}
+
+			l:
 				for {
 					var j interface{}
 					if err := d.Decode(&j); err != nil {
@@ -156,38 +193,24 @@ func main() {
 							continue
 						}
 
-						if gng.ID == *username {
-							if oid == "" && gng.Timestamp < timestamp {
-								errs <- errKicked
+						if oid == "" && gng.Timestamp < timestamp {
+							delete(candidates, gng.ID)
 
-								return
-							} else {
-								if err := e.Encode(v1.NewKick()); err != nil {
-									if *verbose {
-										log.Println("Could not send to peer, stopping")
-									}
-
-									return
+							break l
+						} else if oid == gng.ID {
+							if err := e.Encode(v1.NewKick(oid)); err != nil {
+								if *verbose {
+									log.Println("Could not send to peer, stopping")
 								}
 
-								continue
-							}
-						}
-
-						if err := e.Encode(v1.NewWelcome(*username)); err != nil {
-							if *verbose {
-								log.Println("Could not send to peer, stopping")
+								return
 							}
 
-							return
+							continue
 						}
-
-						rid = gng.ID
-
-						fmt.Printf("+%v@%v\n", rid, peer.ChannelID)
-					case v1.TypeWelcome:
-						var wlc v1.Welcome
-						if err := mapstructure.Decode(j, &wlc); err != nil {
+					case v1.TypeKick:
+						var kck v1.Kick
+						if err := mapstructure.Decode(j, &kck); err != nil {
 							if *verbose {
 								log.Println("Could not decode from peer, skipping")
 							}
@@ -195,13 +218,9 @@ func main() {
 							continue
 						}
 
-						rid = wlc.ID
+						delete(candidates, kck.ID)
 
-						fmt.Printf("+%v@%v\n", rid, peer.ChannelID)
-					case v1.TypeKick:
-						errs <- errKicked
-
-						return
+						break l
 					default:
 						if *verbose {
 							log.Println("Could not handle unknown message type from peer, skipping")
@@ -211,14 +230,6 @@ func main() {
 					}
 				}
 			}()
-
-			if err := e.Encode(v1.NewGreeting(*username, timestamp)); err != nil {
-				if *verbose {
-					log.Println("Could not send to peer, stopping")
-				}
-
-				return
-			}
 		}
 	}
 }

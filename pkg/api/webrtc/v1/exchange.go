@@ -18,25 +18,13 @@ func NewGreeting(id string, timestamp int64) *Greeting {
 
 type Kick struct {
 	Message
-}
-
-func NewKick() *Kick {
-	return &Kick{
-		Message: Message{
-			Type: TypeKick,
-		},
-	}
-}
-
-type Welcome struct {
-	Message
 	ID string `json:"id"`
 }
 
-func NewWelcome(id string) *Welcome {
-	return &Welcome{
+func NewKick(id string) *Kick {
+	return &Kick{
 		Message: Message{
-			Type: TypeWelcome,
+			Type: TypeKick,
 		},
 		ID: id,
 	}
