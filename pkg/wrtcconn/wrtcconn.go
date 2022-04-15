@@ -57,6 +57,8 @@ type Adapter struct {
 	lines  chan []byte
 
 	peers chan *Peer
+
+	api *webrtc.API
 }
 
 func NewAdapter(
@@ -93,6 +95,10 @@ func NewAdapter(
 }
 
 func (a *Adapter) Open() (chan string, error) {
+	settingEngine := webrtc.SettingEngine{}
+	settingEngine.DetachDataChannels()
+	a.api = webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
+
 	ids := make(chan string)
 
 	u, err := url.Parse(a.signaler)
@@ -305,7 +311,7 @@ func (a *Adapter) Open() (chan string, error) {
 								transportPolicy = webrtc.ICETransportPolicyRelay
 							}
 
-							c, err := webrtc.NewPeerConnection(webrtc.Configuration{
+							c, err := a.api.NewPeerConnection(webrtc.Configuration{
 								ICEServers:         iceServers,
 								ICETransportPolicy: transportPolicy,
 							})
@@ -397,9 +403,14 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Println("Connected to channel", dc.Label(), "with peer", introduction.From)
 									}
 
+									c, err := dc.Detach()
+									if err != nil {
+										panic(err)
+									}
+
 									peerLock.Lock()
 									peers[introduction.From].channels[dc.Label()] = dc
-									a.peers <- &Peer{introduction.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
+									a.peers <- &Peer{introduction.From, dc.Label(), c}
 									peerLock.Unlock()
 								})
 
@@ -523,7 +534,7 @@ func (a *Adapter) Open() (chan string, error) {
 								transportPolicy = webrtc.ICETransportPolicyRelay
 							}
 
-							c, err := webrtc.NewPeerConnection(webrtc.Configuration{
+							c, err := a.api.NewPeerConnection(webrtc.Configuration{
 								ICEServers:         iceServers,
 								ICETransportPolicy: transportPolicy,
 							})
@@ -598,9 +609,14 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Println("Connected to channel", dc.Label(), "with peer", offer.From)
 									}
 
+									c, err := dc.Detach()
+									if err != nil {
+										panic(err)
+									}
+
 									peerLock.Lock()
 									peers[offer.From].channels[dc.Label()] = dc
-									a.peers <- &Peer{offer.From, dc.Label(), newDataChannelReadWriteCloser(dc)}
+									a.peers <- &Peer{offer.From, dc.Label(), c}
 									peerLock.Unlock()
 								})
 
@@ -858,50 +874,4 @@ func (a *Adapter) Close() error {
 
 func (a *Adapter) Accept() chan *Peer {
 	return a.peers
-}
-
-type message struct {
-	data []byte
-	err  error
-}
-
-type dataChannelReadWriteCloser struct {
-	dc   *webrtc.DataChannel
-	msgs chan message
-}
-
-func newDataChannelReadWriteCloser(
-	dc *webrtc.DataChannel,
-) *dataChannelReadWriteCloser {
-	d := &dataChannelReadWriteCloser{dc, make(chan message)}
-
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		d.msgs <- message{msg.Data, nil}
-	})
-
-	dc.OnClose(func() {
-		d.msgs <- message{[]byte{}, io.EOF}
-	})
-
-	return d
-}
-
-func (d *dataChannelReadWriteCloser) Read(p []byte) (n int, err error) {
-	msg := <-d.msgs
-
-	if msg.err != nil {
-		return -1, msg.err
-	}
-
-	return copy(p, msg.data), nil
-}
-func (d *dataChannelReadWriteCloser) Write(p []byte) (n int, err error) {
-	if err := d.dc.Send(p); err != nil {
-		return -1, err
-	}
-
-	return len(p), nil
-}
-func (d *dataChannelReadWriteCloser) Close() error {
-	return d.dc.Close()
 }
