@@ -154,6 +154,10 @@ func main() {
 				}()
 
 				greet := func() {
+					if *verbose {
+						log.Println("Sending greeting")
+					}
+
 					if id == "" {
 						if err := e.Encode(v1.NewGreeting(candidates, timestamp)); err != nil {
 							if *verbose {
@@ -206,8 +210,16 @@ func main() {
 							continue
 						}
 
+						if *verbose {
+							log.Println("Received greeting from", gng.IDs)
+						}
+
 						for gngID := range gng.IDs {
 							if _, ok := candidates[gngID]; id == "" && ok && timestamp < gng.Timestamp {
+								if *verbose {
+									log.Println("Sending backoff to", gngID)
+								}
+
 								if err := e.Encode(v1.NewBackoff()); err != nil {
 									if *verbose {
 										log.Println("Could not send to peer, stopping")
@@ -221,6 +233,10 @@ func main() {
 						}
 
 						if _, ok := gng.IDs[id]; ok {
+							if *verbose {
+								log.Println("Sending kick to", id)
+							}
+
 							if err := e.Encode(v1.NewKick(id)); err != nil {
 								if *verbose {
 									log.Println("Could not send to peer, stopping")
@@ -239,12 +255,20 @@ func main() {
 							continue
 						}
 
+						if *verbose {
+							log.Println("Received kick from", kck.ID)
+						}
+
 						candidatesLock.Lock()
 						delete(candidates, kck.ID)
 						candidatesLock.Unlock()
 
 						break l
 					case v1.TypeBackoff:
+						if *verbose {
+							log.Println("Received backoff")
+						}
+
 						ready.Stop()
 
 						time.Sleep(*kicks)
