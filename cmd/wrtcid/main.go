@@ -101,6 +101,9 @@ func main() {
 	id := ""
 	timestamp := time.Now().UnixNano()
 
+	peers := map[string]*wrtcconn.Peer{}
+	var peersLock sync.Mutex
+
 	ready := time.NewTimer(*timeout + *kicks)
 	errs := make(chan error)
 	for {
@@ -138,7 +141,38 @@ func main() {
 			}
 
 			fmt.Printf("%v!\n", id)
+
+			peersLock.Lock()
+			for _, peer := range peers {
+				if *verbose {
+					log.Println("Sending claimed")
+				}
+
+				d, err := json.Marshal(v1.NewClaimed(id))
+				if err != nil {
+					if *verbose {
+						log.Println("Could not marshal claimed")
+					}
+
+					continue
+				}
+
+				if _, err := peer.Conn.Write(d); err != nil {
+					if *verbose {
+						log.Println("Could not send to peer, skipping")
+					}
+
+					continue
+				}
+			}
+			peersLock.Unlock()
 		case peer := <-adapter.Accept():
+			rid := ""
+
+			peersLock.Lock()
+			peers[peer.PeerID] = peer
+			peersLock.Unlock()
+
 			e := json.NewEncoder(peer.Conn)
 			d := json.NewDecoder(peer.Conn)
 
@@ -150,6 +184,14 @@ func main() {
 
 							return
 						}
+					}
+
+					if rid != "" {
+						fmt.Printf("-%v@%v\n", rid, peer.ChannelID)
+
+						peersLock.Lock()
+						delete(peers, rid)
+						peersLock.Unlock()
 					}
 				}()
 
@@ -168,6 +210,18 @@ func main() {
 						}
 					} else {
 						if err := e.Encode(v1.NewGreeting(map[string]struct{}{id: {}}, timestamp)); err != nil {
+							if *verbose {
+								log.Println("Could not send to peer, stopping")
+							}
+
+							return
+						}
+
+						if *verbose {
+							log.Println("Sending claimed")
+						}
+
+						if err := e.Encode(v1.NewClaimed(id)); err != nil {
 							if *verbose {
 								log.Println("Could not send to peer, stopping")
 							}
@@ -262,8 +316,6 @@ func main() {
 						candidatesLock.Lock()
 						delete(candidates, kck.ID)
 						candidatesLock.Unlock()
-
-						break l
 					case v1.TypeBackoff:
 						if *verbose {
 							log.Println("Received backoff")
@@ -276,6 +328,30 @@ func main() {
 						greet()
 
 						ready.Reset(*kicks)
+					case v1.TypeClaimed:
+						var clm v1.Claimed
+						if err := mapstructure.Decode(j, &clm); err != nil {
+							if *verbose {
+								log.Println("Could not decode from peer, skipping")
+							}
+
+							continue
+						}
+
+						if *verbose {
+							log.Println("Received claimed from", clm.ID)
+						}
+
+						rid = clm.ID
+
+						if _, ok := peers[rid]; !ok {
+							fmt.Printf("+%v@%v\n", rid, peer.ChannelID)
+						}
+
+						peersLock.Lock()
+						delete(peers, peer.PeerID)
+						peers[rid] = peer
+						peersLock.Unlock()
 					default:
 						if *verbose {
 							log.Println("Could not handle unknown message type from peer, skipping")

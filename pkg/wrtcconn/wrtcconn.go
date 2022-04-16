@@ -716,12 +716,12 @@ func (a *Adapter) Open() (chan string, error) {
 							}
 
 							if a.config.Verbose {
-								log.Println("Received candidate", candidate, "from signaler with address", conn.RemoteAddr(), "in community", community)
+								log.Println("Received candidate from signaler with address", conn.RemoteAddr(), "in community", community)
 							}
 
 							if candidate.To != id {
 								if a.config.Verbose {
-									log.Println("Discarding candidate", candidate, "from signaler with address", conn.RemoteAddr(), "in community", community, "because it is not intended for this client")
+									log.Println("Discarding candidate from signaler with address", conn.RemoteAddr(), "in community", community, "because it is not intended for this client")
 								}
 
 								continue
