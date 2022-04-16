@@ -41,3 +41,17 @@ func NewBackoff() *Backoff {
 		},
 	}
 }
+
+type Claimed struct {
+	Message
+	ID string `json:"id"`
+}
+
+func NewClaimed(id string) *Claimed {
+	return &Claimed{
+		Message: Message{
+			Type: TypeClaimed,
+		},
+		ID: id,
+	}
+}
