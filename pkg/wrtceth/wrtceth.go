@@ -51,6 +51,10 @@ func NewAdapter(
 ) *Adapter {
 	ictx, cancel := context.WithCancel(ctx)
 
+	if config == nil {
+		config = &AdapterConfig{}
+	}
+
 	if config.Parallel <= 0 {
 		config.Parallel = runtime.NumCPU()
 	}
