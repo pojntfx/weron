@@ -19,7 +19,8 @@ var (
 	errMissingCommunity = errors.New("missing community")
 	errMissingPassword  = errors.New("missing password")
 
-	errMissingKey = errors.New("missing key")
+	errMissingKey       = errors.New("missing key")
+	errMissingUsernames = errors.New("missing usernames")
 )
 
 func main() {
@@ -28,10 +29,12 @@ func main() {
 	community := flag.String("community", "", "ID of community to join")
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
-	username := flag.String("username", "", "Username to send messages as (default is auto-generated)")
-	channel := flag.String("channel", "wrtcchat", "Comma-seperated list of channel in community to join")
+	names := flag.String("names", "", "Comma-seperated list of names to try and claim one from")
+	channel := flag.String("channel", "wrtcid.primary", "Comma-seperated list of channels in community to join")
+	idChannel := flag.String("id-channel", "wrtcid.id", "Channel to use to negotiate names")
 	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	relay := flag.Bool("force-relay", false, "Force usage of TURN servers")
+	kicks := flag.Duration("kicks", time.Second*5, "Time to wait for kicks")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 
 	flag.Parse()
@@ -51,7 +54,11 @@ func main() {
 		panic(errMissingKey)
 	}
 
-	fmt.Printf("\r\u001b[0K.%v\n", *raddr)
+	if strings.TrimSpace(*names) == "" {
+		panic(errMissingUsernames)
+	}
+
+	fmt.Printf(".%v\n", *raddr)
 
 	u, err := url.Parse(*raddr)
 	if err != nil {
@@ -63,16 +70,20 @@ func main() {
 	q.Set("password", *password)
 	u.RawQuery = q.Encode()
 
-	adapter := wrtcconn.NewAdapter(
+	adapter := wrtcconn.NewNamedAdapter(
 		u.String(),
 		*key,
 		strings.Split(*ice, ","),
 		strings.Split(*channel, ","),
-		&wrtcconn.AdapterConfig{
-			Timeout:    *timeout,
-			Verbose:    *verbose,
-			ID:         *username,
-			ForceRelay: *relay,
+		&wrtcconn.NamedAdapterConfig{
+			AdapterConfig: &wrtcconn.AdapterConfig{
+				Timeout:    *timeout,
+				Verbose:    *verbose,
+				ForceRelay: *relay,
+			},
+			IDChannel: *idChannel,
+			Names:     strings.Split(*names, ","),
+			Kicks:     *kicks,
 		},
 		ctx,
 	)
@@ -103,6 +114,8 @@ func main() {
 			return
 		case id = <-ids:
 			fmt.Printf("\r\u001b[0K%v.", id)
+		case err = <-adapter.Err():
+			panic(err)
 		case peer := <-adapter.Accept():
 			fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
 			fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
