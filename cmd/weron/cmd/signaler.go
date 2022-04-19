@@ -84,6 +84,10 @@ var signalerCmd = &cobra.Command{
 		return viper.BindPFlags(cmd.PersistentFlags())
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -171,16 +175,16 @@ var signalerCmd = &cobra.Command{
 }
 
 func init() {
-	signalerCmd.PersistentFlags().String("laddr", ":1337", "Listening address (can also be set using the PORT env variable)")
-	signalerCmd.PersistentFlags().Duration("heartbeat", time.Second*10, "Time to wait for heartbeats")
-	signalerCmd.PersistentFlags().String("postgres-url", "", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
-	signalerCmd.PersistentFlags().String("redis-url", "", "URL of Redis database to use (i.e. redis://myuser:mypassword@localhost:6379/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
-	signalerCmd.PersistentFlags().Bool("cleanup", false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
-	signalerCmd.PersistentFlags().Bool("ephermal-communities", true, "Enable the creation of ephermal communities")
-	signalerCmd.PersistentFlags().String("api-username", "admin", "Username for the management API (can also be set using the API_USERNAME env variable). Ignored if any of the OIDC parameters are set.")
-	signalerCmd.PersistentFlags().String("api-password", "", "Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.")
-	signalerCmd.PersistentFlags().String("oidc-issuer", "", "OIDC Issuer (i.e. https://pojntfx.eu.auth0.com/) (can also be set using the OIDC_ISSUER env variable)")
-	signalerCmd.PersistentFlags().String("oidc-client-id", "", "OIDC Client ID (i.e. myoidcclientid) (can also be set using the OIDC_CLIENT_ID env variable)")
+	signalerCmd.PersistentFlags().String(laddrFlag, ":1337", "Listening address (can also be set using the PORT env variable)")
+	signalerCmd.PersistentFlags().Duration(heartbeatFlag, time.Second*10, "Time to wait for heartbeats")
+	signalerCmd.PersistentFlags().String(postgresURLFlag, "", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
+	signalerCmd.PersistentFlags().String(redisURLFlag, "", "URL of Redis database to use (i.e. redis://myuser:mypassword@localhost:6379/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
+	signalerCmd.PersistentFlags().Bool(cleanupFlag, false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
+	signalerCmd.PersistentFlags().Bool(ephermalCommunitiesFlag, true, "Enable the creation of ephermal communities")
+	signalerCmd.PersistentFlags().String(apiUsernameFlag, "admin", "Username for the management API (can also be set using the API_USERNAME env variable). Ignored if any of the OIDC parameters are set.")
+	signalerCmd.PersistentFlags().String(apiPasswordFlag, "", "Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.")
+	signalerCmd.PersistentFlags().String(oidcIssuerFlag, "", "OIDC Issuer (i.e. https://pojntfx.eu.auth0.com/) (can also be set using the OIDC_ISSUER env variable)")
+	signalerCmd.PersistentFlags().String(oidcClientIDFlag, "", "OIDC Client ID (i.e. myoidcclientid) (can also be set using the OIDC_CLIENT_ID env variable)")
 
 	viper.AutomaticEnv()
 
