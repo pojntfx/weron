@@ -1,1 +1,1 @@
-web: bin/wrtcsgl
+web: bin/weron signaler
