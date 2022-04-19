@@ -25,9 +25,9 @@ const (
 )
 
 var managerTokenCmd = &cobra.Command{
-	Use:     "list",
-	Aliases: []string{"lis", "l", "t", "ls"},
-	Short:   "List the contents of a directory on tape or tar file",
+	Use:     "token",
+	Aliases: []string{"tkn", "t"},
+	Short:   "Generate a OIDC token",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if u := os.Getenv("OIDC_ISSUER"); u != "" {
 			if viper.GetBool(verboseFlag) {
