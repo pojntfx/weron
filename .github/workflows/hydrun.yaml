@@ -22,56 +22,14 @@ jobs:
             src: .
             os: golang:bullseye
             flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtcsgl
-            dst: out/*
-          - id: go
-            src: .
-            os: golang:bullseye
-            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtcchat
-            dst: out/*
-          - id: go
-            src: .
-            os: golang:bullseye
-            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtcmgr
-            dst: out/*
-          - id: go
-            src: .
-            os: golang:bullseye
-            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtctkn
-            dst: out/*
-          - id: go
-            src: .
-            os: golang:bullseye
-            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtceth
-            dst: out/*
-          - id: go
-            src: .
-            os: golang:bullseye
-            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtcip
-            dst: out/*
-          - id: go
-            src: .
-            os: golang:bullseye
-            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtcperf
-            dst: out/*
-          - id: go
-            src: .
-            os: golang:bullseye
-            flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
-            cmd: ./Hydrunfile go wrtcid
+            cmd: ./Hydrunfile go weron
             dst: out/*
           # FIXME: This fails with `error: reference to undefined field or method 'HandshakeContext'`
           # - id: gccgo
           #   src: .
           #   os: ghcr.io/pojntfx/bagccgop-base-sid
           #   flags: -e '--privileged'
-          #   cmd: ./Hydrunfile gccgo wrtcsgl
+          #   cmd: ./Hydrunfile gccgo weron
           #   dst: out/*
 
     steps:
