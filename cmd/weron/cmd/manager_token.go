@@ -73,6 +73,10 @@ var managerTokenCmd = &cobra.Command{
 			viper.GetString(oidcRedirectURLFlag),
 
 			func(s string) error {
+				// Don't write any output to stdout except for the token
+				browser.Stderr = os.Stderr
+				browser.Stdout = os.Stderr
+
 				if err := browser.OpenURL(s); err != nil {
 					log.Printf(`Could not open browser, please open the following URL in your browser manually to authorize:
 %v`, s)
