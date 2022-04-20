@@ -97,7 +97,7 @@ func (m *Manager) ListCommunities() ([]persisters.Community, error) {
 		defer res.Body.Close()
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, err
+		return nil, errors.New(res.Status)
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
