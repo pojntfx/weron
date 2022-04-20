@@ -25,7 +25,7 @@ const (
 
 var managerCreateCmd = &cobra.Command{
 	Use:     "create",
-	Aliases: []string{"ctr", "c"},
+	Aliases: []string{"ctr", "c", "mk"},
 	Short:   "Create a persistent community",
 	PreRunE: validateRemoteFlags,
 	RunE: func(cmd *cobra.Command, args []string) error {
