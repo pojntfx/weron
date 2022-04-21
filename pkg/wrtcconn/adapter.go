@@ -38,10 +38,11 @@ type Peer struct {
 }
 
 type AdapterConfig struct {
-	Timeout    time.Duration
-	Verbose    bool
-	ID         string
-	ForceRelay bool
+	Timeout             time.Duration
+	Verbose             bool
+	ID                  string
+	ForceRelay          bool
+	OnSignalerReconnect func()
 }
 
 type Adapter struct {
@@ -166,6 +167,10 @@ func (a *Adapter) Open() (chan string, error) {
 
 					if a.config.Verbose {
 						log.Println("Reconnecting to signaler with address", u.String(), "in", a.config.Timeout)
+					}
+
+					if a.config.OnSignalerReconnect != nil {
+						a.config.OnSignalerReconnect()
 					}
 
 					time.Sleep(a.config.Timeout)
