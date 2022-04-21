@@ -35,7 +35,7 @@ func main() {
 	community := flag.String("community", "", "ID of community to join")
 	password := flag.String("password", "", "Password for community")
 	key := flag.String("key", "", "Encryption key for community")
-	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-seperated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
+	ice := flag.String("ice", "stun:stun.l.google.com:19302", "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	server := flag.Bool("server", false, "Act as a server")
 	packetLength := flag.Int("packet-length", 1000, "Size of packet to send")
 	packetCount := flag.Int("packet-count", 1000, "Amount of packets to send before waiting for acknowledgement")
