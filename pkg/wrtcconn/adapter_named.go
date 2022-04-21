@@ -75,6 +75,13 @@ func NewNamedAdapter(
 }
 
 func (a *NamedAdapter) Open() (chan string, error) {
+	ready := time.NewTimer(a.config.Timeout + a.config.Kicks)
+
+	a.config.AdapterConfig.OnSignalerReconnect = func() {
+		ready.Stop()
+		ready.Reset(a.config.Timeout + a.config.Kicks)
+	}
+
 	a.adapter = NewAdapter(
 		a.signaler,
 		a.key,
@@ -101,8 +108,6 @@ func (a *NamedAdapter) Open() (chan string, error) {
 	namedPeers := make(chan *Peer)
 	var namedPeersLock sync.Mutex
 	namedPeersCond := sync.NewCond(&namedPeersLock)
-
-	ready := time.NewTimer(a.config.Timeout + a.config.Kicks)
 
 	go func() {
 		for {
