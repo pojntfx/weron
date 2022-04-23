@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pojntfx/webrtcfd/pkg/services"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -160,8 +161,8 @@ func init() {
 	chatCmd.PersistentFlags().String(passwordFlag, "", "Password for community")
 	chatCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
 	chatCmd.PersistentFlags().StringSlice(namesFlag, []string{}, "Comma-separated list of names to try and claim one from")
-	chatCmd.PersistentFlags().StringSlice(channelsFlag, []string{"wrtcid.primary"}, "Comma-separated list of channels in community to join")
-	chatCmd.PersistentFlags().String(idChannelFlag, "wrtcid.id", "Channel to use to negotiate names")
+	chatCmd.PersistentFlags().StringSlice(channelsFlag, []string{services.ChatPrimary}, "Comma-separated list of channels in community to join")
+	chatCmd.PersistentFlags().String(idChannelFlag, services.ChatID, "Channel to use to negotiate names")
 	chatCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	chatCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
 	chatCmd.PersistentFlags().Duration(kicksFlag, time.Second*5, "Time to wait for kicks")

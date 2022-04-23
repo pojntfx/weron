@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/pojntfx/webrtcfd/pkg/services"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/songgao/water"
 	"golang.org/x/sync/semaphore"
@@ -90,7 +91,7 @@ func (a *Adapter) Open() error {
 		a.signaler,
 		a.key,
 		strings.Split(strings.Join(a.ice, ","), ","),
-		[]string{"wrtceth"},
+		[]string{services.EthernetPrimary},
 		a.config.AdapterConfig,
 		a.ctx,
 	)
