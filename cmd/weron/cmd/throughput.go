@@ -134,6 +134,52 @@ var throughputCmd = &cobra.Command{
 						for {
 							start := time.Now()
 
+							read := 0
+							for i := 0; i < viper.GetInt(packetCountFlag); i++ {
+								buf := make([]byte, viper.GetInt(packetLengthFlag))
+
+								n, err := peer.Conn.Read(buf)
+								if err != nil {
+									errs <- err
+
+									return
+								}
+
+								read += n
+							}
+
+							if _, err := peer.Conn.Write(make([]byte, acklen)); err != nil {
+								errs <- err
+
+								return
+							}
+
+							duration := time.Since(start)
+
+							speed := (float64(read) / duration.Seconds()) / 1000000
+
+							if speed < float64(minSpeed) {
+								minSpeed = speed
+							}
+
+							if speed > float64(maxSpeed) {
+								maxSpeed = speed
+							}
+
+							log.Printf("%.3f MB/s (%.3f Mb/s) (%v MB read in %v)", speed, speed*8, read/1000000, duration)
+
+							totalTransferred += read
+						}
+					}()
+				} else {
+					go func() {
+						defer func() {
+							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
+						}()
+
+						for {
+							start := time.Now()
+
 							written := 0
 							for i := 0; i < viper.GetInt(packetCountFlag); i++ {
 								buf := make([]byte, viper.GetInt(packetLengthFlag))
@@ -175,52 +221,6 @@ var throughputCmd = &cobra.Command{
 							log.Printf("%.3f MB/s (%.3f Mb/s) (%v MB written in %v)", speed, speed*8, written/1000000, duration)
 
 							totalTransferred += written
-						}
-					}()
-				} else {
-					go func() {
-						defer func() {
-							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-						}()
-
-						for {
-							start := time.Now()
-
-							read := 0
-							for i := 0; i < viper.GetInt(packetCountFlag); i++ {
-								buf := make([]byte, viper.GetInt(packetLengthFlag))
-
-								n, err := peer.Conn.Read(buf)
-								if err != nil {
-									errs <- err
-
-									return
-								}
-
-								read += n
-							}
-
-							if _, err := peer.Conn.Write(make([]byte, acklen)); err != nil {
-								errs <- err
-
-								return
-							}
-
-							duration := time.Since(start)
-
-							speed := (float64(read) / duration.Seconds()) / 1000000
-
-							if speed < float64(minSpeed) {
-								minSpeed = speed
-							}
-
-							if speed > float64(maxSpeed) {
-								maxSpeed = speed
-							}
-
-							log.Printf("%.3f MB/s (%.3f Mb/s) (%v MB read in %v)", speed, speed*8, read/1000000, duration)
-
-							totalTransferred += read
 						}
 					}()
 				}
