@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pojntfx/webrtcfd/pkg/services"
 	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -66,7 +67,7 @@ var throughputCmd = &cobra.Command{
 			u.String(),
 			viper.GetString(keyFlag),
 			viper.GetStringSlice(iceFlag),
-			[]string{"wrtcip.throughput"},
+			[]string{services.ThroughputPrimary},
 			&wrtcconn.AdapterConfig{
 				Timeout:    viper.GetDuration(timeoutFlag),
 				Verbose:    viper.GetBool(verboseFlag),
