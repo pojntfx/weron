@@ -103,7 +103,7 @@ var throughputCmd = &cobra.Command{
 
 				totalSpeed := (float64(totalTransferred) / totalDuration.Seconds()) / 1000000
 
-				fmt.Printf("Average: %.3f MB/s (%.3f Mb/s) (%v MB written in %v) Min: %.3f MB/s Max: %.3f MB/s\n", totalSpeed, totalSpeed*8, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
+				fmt.Printf("Average throughput: %.3f MB/s (%.3f Mb/s) (%v MB written in %v) Min: %.3f MB/s Max: %.3f MB/s\n", totalSpeed, totalSpeed*8, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
 			}
 
 			os.Exit(0)

@@ -5,8 +5,12 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"math"
 	"net/url"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pojntfx/webrtcfd/pkg/services"
@@ -118,6 +122,26 @@ var latencyCmd = &cobra.Command{
 							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
 						}()
 
+						packetsWritten := int64(0)
+						totalLatency := time.Duration(0)
+
+						minLatency := time.Duration(math.MaxInt64)
+						maxLatency := time.Duration(0)
+
+						s := make(chan os.Signal)
+						signal.Notify(s, os.Interrupt, syscall.SIGTERM)
+						go func() {
+							<-s
+
+							if packetsWritten >= 1 {
+								averageLatency := totalLatency.Nanoseconds() / packetsWritten
+
+								fmt.Printf("Average latency: %v (%v packets written) Min: %v Max: %v\n", time.Duration(averageLatency), packetsWritten, minLatency, maxLatency)
+							}
+
+							os.Exit(0)
+						}()
+
 						for {
 							start := time.Now()
 
@@ -141,9 +165,20 @@ var latencyCmd = &cobra.Command{
 								return
 							}
 
-							duration := time.Since(start)
+							latency := time.Since(start)
 
-							log.Printf("%v B written and acknowledged in %v", written, duration)
+							if latency < minLatency {
+								minLatency = latency
+							}
+
+							if latency > maxLatency {
+								maxLatency = latency
+							}
+
+							totalLatency += latency
+							packetsWritten++
+
+							log.Printf("%v B written and acknowledged in %v", written, latency)
 
 							time.Sleep(viper.GetDuration(pauseFlag))
 						}
