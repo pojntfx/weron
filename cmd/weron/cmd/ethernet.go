@@ -57,7 +57,7 @@ var ethernetCmd = &cobra.Command{
 		adapter := wrtceth.NewAdapter(
 			u.String(),
 			viper.GetString(keyFlag),
-			strings.Split(viper.GetString(iceFlag), ","),
+			viper.GetStringSlice(iceFlag),
 			&wrtceth.AdapterConfig{
 				Device: viper.GetString(devFlag),
 				OnSignalerConnect: func(s string) {
