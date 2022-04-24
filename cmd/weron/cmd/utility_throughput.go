@@ -27,7 +27,7 @@ const (
 	acklen = 100
 )
 
-var throughputCmd = &cobra.Command{
+var utilityThroughputCmd = &cobra.Command{
 	Use:     "throughput",
 	Aliases: []string{"thr", "t"},
 	Short:   "Measure the throughput of the overlay network",
@@ -242,18 +242,18 @@ var throughputCmd = &cobra.Command{
 }
 
 func init() {
-	throughputCmd.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
-	throughputCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
-	throughputCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
-	throughputCmd.PersistentFlags().String(passwordFlag, "", "Password for community")
-	throughputCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
-	throughputCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
-	throughputCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
-	throughputCmd.PersistentFlags().Bool(serverFlag, false, "Act as a server")
-	throughputCmd.PersistentFlags().Int(packetLengthFlag, 50000, "Size of packet to send")
-	throughputCmd.PersistentFlags().Int(packetCountFlag, 1000, "Amount of packets to send before waiting for acknowledgement")
+	utilityThroughputCmd.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
+	utilityThroughputCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
+	utilityThroughputCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
+	utilityThroughputCmd.PersistentFlags().String(passwordFlag, "", "Password for community")
+	utilityThroughputCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
+	utilityThroughputCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
+	utilityThroughputCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
+	utilityThroughputCmd.PersistentFlags().Bool(serverFlag, false, "Act as a server")
+	utilityThroughputCmd.PersistentFlags().Int(packetLengthFlag, 50000, "Size of packet to send")
+	utilityThroughputCmd.PersistentFlags().Int(packetCountFlag, 1000, "Amount of packets to send before waiting for acknowledgement")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(throughputCmd)
+	utilityCmd.AddCommand(utilityThroughputCmd)
 }

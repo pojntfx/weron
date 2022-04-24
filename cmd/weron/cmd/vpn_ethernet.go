@@ -20,7 +20,7 @@ const (
 	parallelFlag = "parallel"
 )
 
-var ethernetCmd = &cobra.Command{
+var vpnEthernetCmd = &cobra.Command{
 	Use:     "ethernet",
 	Aliases: []string{"eth", "e"},
 	Short:   "Join a layer 2 overlay network",
@@ -96,18 +96,18 @@ var ethernetCmd = &cobra.Command{
 }
 
 func init() {
-	ethernetCmd.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
-	ethernetCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
-	ethernetCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
-	ethernetCmd.PersistentFlags().String(passwordFlag, "", "Password for community")
-	ethernetCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
-	ethernetCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
-	ethernetCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
-	ethernetCmd.PersistentFlags().String(devFlag, "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
-	ethernetCmd.PersistentFlags().String(macFlag, "", "MAC address to give to the TAP device (i.e. 3a:f8:de:7b:ef:52) (default is auto-generated; only supported on Linux)")
-	ethernetCmd.PersistentFlags().Int(parallelFlag, runtime.NumCPU(), "Amount of threads to use to decode frames")
+	vpnEthernetCmd.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
+	vpnEthernetCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
+	vpnEthernetCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
+	vpnEthernetCmd.PersistentFlags().String(passwordFlag, "", "Password for community")
+	vpnEthernetCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
+	vpnEthernetCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
+	vpnEthernetCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
+	vpnEthernetCmd.PersistentFlags().String(devFlag, "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
+	vpnEthernetCmd.PersistentFlags().String(macFlag, "", "MAC address to give to the TAP device (i.e. 3a:f8:de:7b:ef:52) (default is auto-generated; only supported on Linux)")
+	vpnEthernetCmd.PersistentFlags().Int(parallelFlag, runtime.NumCPU(), "Amount of threads to use to decode frames")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(ethernetCmd)
+	vpnCmd.AddCommand(vpnEthernetCmd)
 }

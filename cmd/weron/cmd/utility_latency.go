@@ -23,7 +23,7 @@ const (
 	pauseFlag = "pause"
 )
 
-var latencyCmd = &cobra.Command{
+var utilityLatencyCommand = &cobra.Command{
 	Use:     "latency",
 	Aliases: []string{"ltc", "l"},
 	Short:   "Measure the latency of the overlay network",
@@ -204,18 +204,18 @@ var latencyCmd = &cobra.Command{
 }
 
 func init() {
-	latencyCmd.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
-	latencyCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
-	latencyCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
-	latencyCmd.PersistentFlags().String(passwordFlag, "", "Password for community")
-	latencyCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
-	latencyCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
-	latencyCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
-	latencyCmd.PersistentFlags().Bool(serverFlag, false, "Act as a server")
-	latencyCmd.PersistentFlags().Int(packetLengthFlag, 128, "Size of packet to send and acknowledge")
-	latencyCmd.PersistentFlags().Duration(pauseFlag, time.Second*1, "Time to wait before sending next packet")
+	utilityLatencyCommand.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
+	utilityLatencyCommand.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
+	utilityLatencyCommand.PersistentFlags().String(communityFlag, "", "ID of community to join")
+	utilityLatencyCommand.PersistentFlags().String(passwordFlag, "", "Password for community")
+	utilityLatencyCommand.PersistentFlags().String(keyFlag, "", "Encryption key for community")
+	utilityLatencyCommand.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
+	utilityLatencyCommand.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
+	utilityLatencyCommand.PersistentFlags().Bool(serverFlag, false, "Act as a server")
+	utilityLatencyCommand.PersistentFlags().Int(packetLengthFlag, 128, "Size of packet to send and acknowledge")
+	utilityLatencyCommand.PersistentFlags().Duration(pauseFlag, time.Second*1, "Time to wait before sending next packet")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(latencyCmd)
+	utilityCmd.AddCommand(utilityLatencyCommand)
 }
