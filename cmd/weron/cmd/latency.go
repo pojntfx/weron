@@ -104,13 +104,17 @@ var latencyCmd = &cobra.Command{
 						for {
 							buf := make([]byte, viper.GetInt(packetLengthFlag))
 							if _, err := peer.Conn.Read(buf); err != nil {
-								errs <- err
+								if viper.GetBool(verboseFlag) {
+									log.Println("Could not read from peer, stopping")
+								}
 
 								return
 							}
 
 							if _, err := peer.Conn.Write(buf); err != nil {
-								errs <- err
+								if viper.GetBool(verboseFlag) {
+									log.Println("Could not write to peer, stopping")
+								}
 
 								return
 							}
@@ -118,28 +122,34 @@ var latencyCmd = &cobra.Command{
 					}()
 				} else {
 					go func() {
-						defer func() {
-							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-						}()
-
 						packetsWritten := int64(0)
 						totalLatency := time.Duration(0)
 
 						minLatency := time.Duration(math.MaxInt64)
 						maxLatency := time.Duration(0)
 
-						s := make(chan os.Signal)
-						signal.Notify(s, os.Interrupt, syscall.SIGTERM)
-						go func() {
-							<-s
-
+						printTotals := func() {
 							if packetsWritten >= 1 {
 								averageLatency := totalLatency.Nanoseconds() / packetsWritten
 
 								fmt.Printf("Average latency: %v (%v packets written) Min: %v Max: %v\n", time.Duration(averageLatency), packetsWritten, minLatency, maxLatency)
 							}
+						}
+
+						s := make(chan os.Signal)
+						signal.Notify(s, os.Interrupt, syscall.SIGTERM)
+						go func() {
+							<-s
+
+							printTotals()
 
 							os.Exit(0)
+						}()
+
+						defer func() {
+							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
+
+							printTotals()
 						}()
 
 						for {
@@ -154,13 +164,17 @@ var latencyCmd = &cobra.Command{
 
 							written, err := peer.Conn.Write(buf)
 							if err != nil {
-								errs <- err
+								if viper.GetBool(verboseFlag) {
+									log.Println("Could not write to peer, stopping")
+								}
 
 								return
 							}
 
 							if _, err := peer.Conn.Read(buf); err != nil {
-								errs <- err
+								if viper.GetBool(verboseFlag) {
+									log.Println("Could not read from peer, stopping")
+								}
 
 								return
 							}
