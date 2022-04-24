@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -143,6 +144,10 @@ var chatCmd = &cobra.Command{
 				go func() {
 					for msg := range l.Ch() {
 						if _, err := peer.Conn.Write(msg); err != nil {
+							if viper.GetBool(verboseFlag) {
+								log.Println("Could not write to peer, stopping")
+							}
+
 							return
 						}
 
