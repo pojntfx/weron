@@ -1,6 +1,6 @@
-# webrtcfd
+# weron
 
-Share a file or tape drive over WebRTC.
+Overlay networks based on WebRTC.
 
 ## Overview
 
@@ -8,6 +8,6 @@ Share a file or tape drive over WebRTC.
 
 ## License
 
-webrtcfd (c) 2022 Felix Pojtinger and contributors
+weron (c) 2022 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0

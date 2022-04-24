@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/pojntfx/webrtcfd/pkg/wrtcmgr"
+	"github.com/pojntfx/weron/pkg/wrtcmgr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pojntfx/webrtcfd/pkg/services"
-	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
+	"github.com/pojntfx/weron/pkg/services"
+	"github.com/pojntfx/weron/pkg/wrtcconn"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -242,7 +242,7 @@ var utilityThroughputCmd = &cobra.Command{
 }
 
 func init() {
-	utilityThroughputCmd.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
+	utilityThroughputCmd.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
 	utilityThroughputCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	utilityThroughputCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	utilityThroughputCmd.PersistentFlags().String(passwordFlag, "", "Password for community")

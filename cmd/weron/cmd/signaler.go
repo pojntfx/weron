@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pojntfx/webrtcfd/pkg/wrtcsgl"
+	"github.com/pojntfx/weron/pkg/wrtcsgl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/pojntfx/webrtcfd/internal/brokers"
+	"github.com/pojntfx/weron/internal/brokers"
 	"github.com/teivah/broadcast"
 )
 

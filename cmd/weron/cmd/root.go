@@ -18,7 +18,7 @@ var rootCmd = &cobra.Command{
 	Long: `Overlay networks based on WebRTC.
 
 Find more information at:
-https://github.com/pojntfx/webrtcfd`,
+https://github.com/pojntfx/weron`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		viper.SetEnvPrefix("weron")
 		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))

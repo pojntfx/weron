@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/pojntfx/webrtcfd/internal/brokers"
+	"github.com/pojntfx/weron/internal/brokers"
 )
 
 const (
