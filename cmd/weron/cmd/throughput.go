@@ -86,29 +86,6 @@ var throughputCmd = &cobra.Command{
 			}
 		}()
 
-		totalTransferred := 0
-		totalStart := time.Now()
-		ready := false
-
-		minSpeed := math.MaxFloat64
-		maxSpeed := float64(0)
-
-		s := make(chan os.Signal)
-		signal.Notify(s, os.Interrupt, syscall.SIGTERM)
-		go func() {
-			<-s
-
-			if ready {
-				totalDuration := time.Since(totalStart)
-
-				totalSpeed := (float64(totalTransferred) / totalDuration.Seconds()) / 1000000
-
-				fmt.Printf("Average throughput: %.3f MB/s (%.3f Mb/s) (%v MB written in %v) Min: %.3f MB/s Max: %.3f MB/s\n", totalSpeed, totalSpeed*8, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
-			}
-
-			os.Exit(0)
-		}()
-
 		errs := make(chan error)
 		id := ""
 		for {
@@ -122,13 +99,38 @@ var throughputCmd = &cobra.Command{
 			case peer := <-adapter.Accept():
 				fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
 
-				ready = true
-				totalStart = time.Now()
+				totalTransferred := 0
+				totalStart := time.Now()
+
+				minSpeed := math.MaxFloat64
+				maxSpeed := float64(0)
+
+				printTotals := func() {
+					if totalTransferred >= 1 {
+						totalDuration := time.Since(totalStart)
+
+						totalSpeed := (float64(totalTransferred) / totalDuration.Seconds()) / 1000000
+
+						fmt.Printf("Average throughput: %.3f MB/s (%.3f Mb/s) (%v MB written in %v) Min: %.3f MB/s Max: %.3f MB/s\n", totalSpeed, totalSpeed*8, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
+					}
+				}
+
+				s := make(chan os.Signal)
+				signal.Notify(s, os.Interrupt, syscall.SIGTERM)
+				go func() {
+					<-s
+
+					printTotals()
+
+					os.Exit(0)
+				}()
 
 				if viper.GetBool(serverFlag) {
 					go func() {
 						defer func() {
 							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
+
+							printTotals()
 						}()
 
 						for {
@@ -140,7 +142,9 @@ var throughputCmd = &cobra.Command{
 
 								n, err := peer.Conn.Read(buf)
 								if err != nil {
-									errs <- err
+									if viper.GetBool(verboseFlag) {
+										log.Println("Could not read from peer, stopping")
+									}
 
 									return
 								}
@@ -149,7 +153,9 @@ var throughputCmd = &cobra.Command{
 							}
 
 							if _, err := peer.Conn.Write(make([]byte, acklen)); err != nil {
-								errs <- err
+								if viper.GetBool(verboseFlag) {
+									log.Println("Could not write to peer, stopping")
+								}
 
 								return
 							}
@@ -175,6 +181,8 @@ var throughputCmd = &cobra.Command{
 					go func() {
 						defer func() {
 							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
+
+							printTotals()
 						}()
 
 						for {
@@ -191,7 +199,9 @@ var throughputCmd = &cobra.Command{
 
 								n, err := peer.Conn.Write(buf)
 								if err != nil {
-									errs <- err
+									if viper.GetBool(verboseFlag) {
+										log.Println("Could not write to peer, stopping")
+									}
 
 									return
 								}
@@ -201,7 +211,9 @@ var throughputCmd = &cobra.Command{
 
 							buf := make([]byte, acklen)
 							if _, err := peer.Conn.Read(buf); err != nil {
-								errs <- err
+								if viper.GetBool(verboseFlag) {
+									log.Println("Could not read from peer, stopping")
+								}
 
 								return
 							}
@@ -238,7 +250,7 @@ func init() {
 	throughputCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	throughputCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
 	throughputCmd.PersistentFlags().Bool(serverFlag, false, "Act as a server")
-	throughputCmd.PersistentFlags().Int(packetLengthFlag, 1000, "Size of packet to send")
+	throughputCmd.PersistentFlags().Int(packetLengthFlag, 50000, "Size of packet to send")
 	throughputCmd.PersistentFlags().Int(packetCountFlag, 1000, "Amount of packets to send before waiting for acknowledgement")
 
 	viper.AutomaticEnv()
