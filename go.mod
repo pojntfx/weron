@@ -18,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.11.0
-	github.com/teivah/broadcast v0.0.6
+	github.com/teivah/broadcast v0.0.7-0.20220316095729-071f20229a32
 	github.com/vishvananda/netlink v1.1.0
 	github.com/volatiletech/null/v8 v8.1.2
 	github.com/volatiletech/sqlboiler/v4 v4.10.2
