@@ -443,8 +443,8 @@ github.com/stretchr/testify v1.7.1 h1:5TQK59W5E3v0r2duFAb7P95B6hEeOyEnHRa8MjYSMT
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/subosito/gotenv v1.2.0 h1:Slr1R9HxAlEKefgq5jn9U+DnETlIUa6HfgEzj0g5d7s=
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
-github.com/teivah/broadcast v0.0.6 h1:hak1LvXtCuzIbPT6mnR1e4lZ8ceZXpjiLGUkM1t3tnA=
-github.com/teivah/broadcast v0.0.6/go.mod h1:yEVTJePkp1t6dlngpf3VxAQ2NgkxDVoygydAIpekATg=
+github.com/teivah/broadcast v0.0.7-0.20220316095729-071f20229a32 h1:iw0mdJEZgCTjtKxz/7QvJwqmWcMeKWGtl2EAyDMutVw=
+github.com/teivah/broadcast v0.0.7-0.20220316095729-071f20229a32/go.mod h1:mXEgvXdYz2xUkQFARxI+jyX1MfCBwMDiGjIKSAsEq1g=
 github.com/vishvananda/netlink v1.1.0 h1:1iyaYNBLmP6L0220aDnYQpo1QEV4t4hJ+xEEhhJH8j0=
 github.com/vishvananda/netlink v1.1.0/go.mod h1:cTgwzPIzzgDAYoQrMm0EdrjRUBkTqKYppBueQtXaqoE=
 github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df h1:OviZH7qLw/7ZovXvuNyL3XQl8UFofeikI1NW1Gypu7k=
