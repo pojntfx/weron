@@ -1,4 +1,4 @@
 psql:
   dialect: postgres
-  datasource: dbname=webrtcfd_communities user=postgres sslmode=disable
+  datasource: dbname=weron_communities user=postgres sslmode=disable
   dir: db/psql/migrations/communities/

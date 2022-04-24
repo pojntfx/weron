@@ -42,13 +42,13 @@ benchmark:
 # Clean
 clean:
 	rm -rf out internal/db
-	docker rm -f webrtcfd-postgres webrtcfd-redis
+	docker rm -f weron-postgres weron-redis
 
 # Dependencies
 depend:
-	docker run -d --name webrtcfd-postgres -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=webrtcfd_communities postgres
-	docker run -d --name webrtcfd-redis -p 6379:6379 redis
-	docker exec webrtcfd-postgres bash -c 'until pg_isready; do sleep 1; done'
+	docker run -d --name weron-postgres -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=weron_communities postgres
+	docker run -d --name weron-redis -p 6379:6379 redis
+	docker exec weron-postgres bash -c 'until pg_isready; do sleep 1; done'
 	go install github.com/rubenv/sql-migrate/sql-migrate@latest
 	go install github.com/volatiletech/sqlboiler/v4@latest
 	go install github.com/jteeuwen/go-bindata/go-bindata@latest

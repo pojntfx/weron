@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/pojntfx/webrtcfd/internal/persisters"
+	"github.com/pojntfx/weron/internal/persisters"
 	"golang.org/x/crypto/bcrypt"
 )
 

@@ -3,7 +3,7 @@ package basic
 import (
 	"context"
 
-	"github.com/pojntfx/webrtcfd/internal/persisters"
+	"github.com/pojntfx/weron/internal/persisters"
 )
 
 type Authn struct {

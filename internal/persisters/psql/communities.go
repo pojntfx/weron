@@ -5,9 +5,9 @@ import (
 	"database/sql"
 
 	_ "github.com/lib/pq"
-	"github.com/pojntfx/webrtcfd/internal/db/psql/migrations/communities"
-	models "github.com/pojntfx/webrtcfd/internal/db/psql/models/communities"
-	"github.com/pojntfx/webrtcfd/internal/persisters"
+	"github.com/pojntfx/weron/internal/db/psql/migrations/communities"
+	models "github.com/pojntfx/weron/internal/db/psql/models/communities"
+	"github.com/pojntfx/weron/internal/persisters"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"

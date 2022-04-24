@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/pojntfx/webrtcfd/internal/persisters"
+	"github.com/pojntfx/weron/internal/persisters"
 )
 
 type Manager struct {

@@ -1,6 +1,6 @@
 no-tests: true
 psql:
-  dbname: webrtcfd_communities
+  dbname: weron_communities
   user: postgres
   sslmode: disable
   host: localhost

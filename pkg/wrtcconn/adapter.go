@@ -14,8 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
-	websocketapi "github.com/pojntfx/webrtcfd/internal/api/websocket"
-	"github.com/pojntfx/webrtcfd/internal/encryption"
+	websocketapi "github.com/pojntfx/weron/internal/api/websocket"
+	"github.com/pojntfx/weron/internal/encryption"
 )
 
 var (

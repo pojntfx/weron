@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/mitchellh/mapstructure"
-	v1 "github.com/pojntfx/webrtcfd/pkg/api/webrtc/v1"
+	v1 "github.com/pojntfx/weron/pkg/api/webrtc/v1"
 )
 
 var (

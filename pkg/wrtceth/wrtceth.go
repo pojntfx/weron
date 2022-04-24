@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"github.com/pojntfx/webrtcfd/pkg/services"
-	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
+	"github.com/pojntfx/weron/pkg/services"
+	"github.com/pojntfx/weron/pkg/wrtcconn"
 	"github.com/songgao/water"
 	"golang.org/x/sync/semaphore"
 )

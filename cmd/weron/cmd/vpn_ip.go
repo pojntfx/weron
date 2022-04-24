@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pojntfx/webrtcfd/pkg/wrtcconn"
-	"github.com/pojntfx/webrtcfd/pkg/wrtcip"
+	"github.com/pojntfx/weron/pkg/wrtcconn"
+	"github.com/pojntfx/weron/pkg/wrtcip"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -111,7 +111,7 @@ var vpnIPCmd = &cobra.Command{
 }
 
 func init() {
-	vpnIPCmd.PersistentFlags().String(raddrFlag, "wss://webrtcfd.herokuapp.com/", "Remote address")
+	vpnIPCmd.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
 	vpnIPCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	vpnIPCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	vpnIPCmd.PersistentFlags().String(passwordFlag, "", "Password for community")
