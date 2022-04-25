@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"log"
-	"math"
 	"net/url"
 	"os"
 	"os/signal"
@@ -13,10 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pojntfx/weron/pkg/services"
 	"github.com/pojntfx/weron/pkg/wrtcconn"
+	"github.com/pojntfx/weron/pkg/wrtcltc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/teivah/broadcast"
 )
 
 const (
@@ -59,147 +58,84 @@ var utilityLatencyCommand = &cobra.Command{
 		q.Set("password", viper.GetString(passwordFlag))
 		u.RawQuery = q.Encode()
 
-		adapter := wrtcconn.NewAdapter(
+		adapter := wrtcltc.NewAdapter(
 			u.String(),
 			viper.GetString(keyFlag),
 			viper.GetStringSlice(iceFlag),
-			[]string{services.LatencyPrimary},
-			&wrtcconn.AdapterConfig{
-				Timeout:    viper.GetDuration(timeoutFlag),
-				Verbose:    viper.GetBool(verboseFlag),
-				ForceRelay: viper.GetBool(forceRelayFlag),
+			&wrtcltc.AdapterConfig{
+				OnSignalerConnect: func(s string) {
+					log.Println("Connected to signaler as", s)
+				},
+				OnPeerConnect: func(s string) {
+					log.Println("Connected to peer", s)
+				},
+				OnPeerDisconnected: func(s string) {
+					log.Println("Disconnected from peer", s)
+				},
+				AdapterConfig: &wrtcconn.AdapterConfig{
+					Timeout:    viper.GetDuration(timeoutFlag),
+					Verbose:    viper.GetBool(verboseFlag),
+					ForceRelay: viper.GetBool(forceRelayFlag),
+				},
+				Server:       viper.GetBool(serverFlag),
+				PacketLength: viper.GetInt(packetLengthFlag),
+				Pause:        viper.GetDuration(pauseFlag),
 			},
 			ctx,
 		)
 
-		ids, err := adapter.Open()
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err := adapter.Close(); err != nil {
-				panic(err)
+		acked := false
+		totaled := broadcast.NewRelay[struct{}]()
+
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					if err := ctx.Err(); err != nil {
+						panic(err)
+					}
+
+					return
+				case ack := <-adapter.Acknowledgement():
+					log.Printf("%v B written and acknowledged in %v", ack.BytesWritten, ack.Latency)
+
+					acked = true
+				case totals := <-adapter.Totals():
+					fmt.Printf("Average latency: %v (%v packets written) Min: %v Max: %v\n", totals.LatencyAverage, totals.PacketsWritten, totals.LatencyMin, totals.LatencyMax)
+
+					totaled.Broadcast(struct{}{})
+				}
 			}
 		}()
 
-		errs := make(chan error)
-		id := ""
-		for {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case err := <-errs:
-				panic(err)
-			case id = <-ids:
-				fmt.Printf("\r\u001b[0K%v.", id)
-			case peer := <-adapter.Accept():
-				fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
+		log.Println("Connecting to signaler", viper.GetString(raddrFlag))
 
-				if viper.GetBool(serverFlag) {
-					go func() {
-						defer func() {
-							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-						}()
-
-						for {
-							buf := make([]byte, viper.GetInt(packetLengthFlag))
-							if _, err := peer.Conn.Read(buf); err != nil {
-								if viper.GetBool(verboseFlag) {
-									log.Println("Could not read from peer, stopping")
-								}
-
-								return
-							}
-
-							if _, err := peer.Conn.Write(buf); err != nil {
-								if viper.GetBool(verboseFlag) {
-									log.Println("Could not write to peer, stopping")
-								}
-
-								return
-							}
-						}
-					}()
-				} else {
-					go func() {
-						packetsWritten := int64(0)
-						totalLatency := time.Duration(0)
-
-						minLatency := time.Duration(math.MaxInt64)
-						maxLatency := time.Duration(0)
-
-						printTotals := func() {
-							if packetsWritten >= 1 {
-								averageLatency := totalLatency.Nanoseconds() / packetsWritten
-
-								fmt.Printf("Average latency: %v (%v packets written) Min: %v Max: %v\n", time.Duration(averageLatency), packetsWritten, minLatency, maxLatency)
-							}
-						}
-
-						s := make(chan os.Signal)
-						signal.Notify(s, os.Interrupt, syscall.SIGTERM)
-						go func() {
-							<-s
-
-							printTotals()
-
-							os.Exit(0)
-						}()
-
-						defer func() {
-							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-
-							printTotals()
-						}()
-
-						for {
-							start := time.Now()
-
-							buf := make([]byte, viper.GetInt(packetLengthFlag))
-							if _, err := rand.Read(buf); err != nil {
-								errs <- err
-
-								return
-							}
-
-							written, err := peer.Conn.Write(buf)
-							if err != nil {
-								if viper.GetBool(verboseFlag) {
-									log.Println("Could not write to peer, stopping")
-								}
-
-								return
-							}
-
-							if _, err := peer.Conn.Read(buf); err != nil {
-								if viper.GetBool(verboseFlag) {
-									log.Println("Could not read from peer, stopping")
-								}
-
-								return
-							}
-
-							latency := time.Since(start)
-
-							if latency < minLatency {
-								minLatency = latency
-							}
-
-							if latency > maxLatency {
-								maxLatency = latency
-							}
-
-							totalLatency += latency
-							packetsWritten++
-
-							log.Printf("%v B written and acknowledged in %v", written, latency)
-
-							time.Sleep(viper.GetDuration(pauseFlag))
-						}
-					}()
-				}
-			}
+		if err := adapter.Open(); err != nil {
+			return err
 		}
+
+		s := make(chan os.Signal)
+		signal.Notify(s, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-s
+
+			if !viper.GetBool(serverFlag) && acked {
+				l := totaled.Listener(0)
+				defer l.Close()
+
+				adapter.GatherTotals()
+
+				<-l.Ch()
+			}
+
+			if err := adapter.Close(); err != nil {
+				panic(err)
+			}
+
+			os.Exit(0)
+		}()
+
+		return adapter.Wait()
 	},
 }
 
