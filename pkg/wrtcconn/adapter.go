@@ -413,10 +413,16 @@ func (a *Adapter) Open() (chan string, error) {
 										panic(err)
 									}
 
-									peerLock.Lock()
-									peers[introduction.From].channels[dc.Label()] = dc
-									a.peers <- &Peer{introduction.From, dc.Label(), c}
-									peerLock.Unlock()
+									for _, channel := range a.channels {
+										if dc.Label() == channel {
+											peerLock.Lock()
+											peers[introduction.From].channels[dc.Label()] = dc
+											a.peers <- &Peer{introduction.From, dc.Label(), c}
+											peerLock.Unlock()
+
+											break
+										}
+									}
 								})
 
 								dc.OnClose(func() {
@@ -619,10 +625,16 @@ func (a *Adapter) Open() (chan string, error) {
 										panic(err)
 									}
 
-									peerLock.Lock()
-									peers[offer.From].channels[dc.Label()] = dc
-									a.peers <- &Peer{offer.From, dc.Label(), c}
-									peerLock.Unlock()
+									for _, channel := range a.channels {
+										if dc.Label() == channel {
+											peerLock.Lock()
+											peers[offer.From].channels[dc.Label()] = dc
+											a.peers <- &Peer{offer.From, dc.Label(), c}
+											peerLock.Unlock()
+
+											break
+										}
+									}
 								})
 
 								dc.OnClose(func() {

@@ -7,7 +7,7 @@ import (
 
 var utilityCmd = &cobra.Command{
 	Use:     "utility",
-	Aliases: []string{"uti", "u"},
+	Aliases: []string{"uti", "u", "util"},
 	Short:   "Utilities for overlay networks",
 }
 
