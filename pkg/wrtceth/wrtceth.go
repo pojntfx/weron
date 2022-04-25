@@ -172,7 +172,7 @@ func (a *Adapter) Wait() error {
 	for {
 		select {
 		case <-a.ctx.Done():
-			return nil
+			return a.ctx.Err()
 		case id := <-a.ids:
 			if a.config.OnSignalerConnect != nil {
 				a.config.OnSignalerConnect(id)

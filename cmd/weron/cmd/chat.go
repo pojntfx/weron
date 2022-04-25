@@ -107,7 +107,7 @@ var chatCmd = &cobra.Command{
 			reader := bufio.NewScanner(os.Stdin)
 
 			for reader.Scan() {
-				lines.Broadcast([]byte(reader.Text() + "\n"))
+				lines.NotifyCtx(ctx, []byte(reader.Text()+"\n"))
 			}
 		}()
 
