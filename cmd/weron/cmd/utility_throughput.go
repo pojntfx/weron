@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 	"log"
-	"math"
 	"net/url"
 	"os"
 	"os/signal"
@@ -13,18 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pojntfx/weron/pkg/services"
 	"github.com/pojntfx/weron/pkg/wrtcconn"
+	"github.com/pojntfx/weron/pkg/wrtcthr"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/teivah/broadcast"
 )
 
 const (
 	serverFlag       = "server"
 	packetLengthFlag = "packet-length"
 	packetCountFlag  = "packet-count"
-
-	acklen = 100
 )
 
 var utilityThroughputCmd = &cobra.Command{
@@ -63,181 +60,98 @@ var utilityThroughputCmd = &cobra.Command{
 		q.Set("password", viper.GetString(passwordFlag))
 		u.RawQuery = q.Encode()
 
-		adapter := wrtcconn.NewAdapter(
+		adapter := wrtcthr.NewAdapter(
 			u.String(),
 			viper.GetString(keyFlag),
 			viper.GetStringSlice(iceFlag),
-			[]string{services.ThroughputPrimary},
-			&wrtcconn.AdapterConfig{
-				Timeout:    viper.GetDuration(timeoutFlag),
-				Verbose:    viper.GetBool(verboseFlag),
-				ForceRelay: viper.GetBool(forceRelayFlag),
+			&wrtcthr.AdapterConfig{
+				OnSignalerConnect: func(s string) {
+					log.Println("Connected to signaler as", s)
+				},
+				OnPeerConnect: func(s string) {
+					log.Println("Connected to peer", s)
+				},
+				OnPeerDisconnected: func(s string) {
+					log.Println("Disconnected from peer", s)
+				},
+				AdapterConfig: &wrtcconn.AdapterConfig{
+					Timeout:    viper.GetDuration(timeoutFlag),
+					Verbose:    viper.GetBool(verboseFlag),
+					ForceRelay: viper.GetBool(forceRelayFlag),
+				},
+				Server:       viper.GetBool(serverFlag),
+				PacketLength: viper.GetInt(packetLengthFlag),
+				PacketCount:  viper.GetInt(packetCountFlag),
 			},
 			ctx,
 		)
 
-		ids, err := adapter.Open()
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err := adapter.Close(); err != nil {
-				panic(err)
+		acked := false
+		totaled := broadcast.NewRelay[struct{}]()
+
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					if err := ctx.Err(); err != nil {
+						panic(err)
+					}
+
+					return
+				case ack := <-adapter.Acknowledgement():
+					log.Printf(
+						"%.3f MB/s (%.3f Mb/s) (%v MB read in %v)",
+						ack.ThroughputMB,
+						ack.ThroughputMb,
+						ack.TransferredMB,
+						ack.TransferredDuration,
+					)
+
+					acked = true
+				case totals := <-adapter.Totals():
+					fmt.Printf(
+						"Average throughput: %.3f MB/s (%.3f Mb/s) (%v MB written in %v) Min: %.3f MB/s Max: %.3f MB/s\n",
+						totals.ThroughputAverageMB,
+						totals.ThroughputAverageMb,
+						totals.TransferredMB,
+						totals.TransferredDuration,
+						totals.ThroughputMin,
+						totals.ThroughputMax,
+					)
+
+					totaled.Broadcast(struct{}{})
+				}
 			}
 		}()
 
-		errs := make(chan error)
-		id := ""
-		for {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case err := <-errs:
-				panic(err)
-			case id = <-ids:
-				fmt.Printf("\r\u001b[0K%v.", id)
-			case peer := <-adapter.Accept():
-				fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
+		log.Println("Connecting to signaler", viper.GetString(raddrFlag))
 
-				totalTransferred := 0
-				totalStart := time.Now()
-
-				minSpeed := math.MaxFloat64
-				maxSpeed := float64(0)
-
-				printTotals := func() {
-					if totalTransferred >= 1 {
-						totalDuration := time.Since(totalStart)
-
-						totalSpeed := (float64(totalTransferred) / totalDuration.Seconds()) / 1000000
-
-						fmt.Printf("Average throughput: %.3f MB/s (%.3f Mb/s) (%v MB written in %v) Min: %.3f MB/s Max: %.3f MB/s\n", totalSpeed, totalSpeed*8, totalTransferred/1000000, totalDuration, minSpeed, maxSpeed)
-					}
-				}
-
-				s := make(chan os.Signal)
-				signal.Notify(s, os.Interrupt, syscall.SIGTERM)
-				go func() {
-					<-s
-
-					printTotals()
-
-					os.Exit(0)
-				}()
-
-				if viper.GetBool(serverFlag) {
-					go func() {
-						defer func() {
-							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-
-							printTotals()
-						}()
-
-						for {
-							start := time.Now()
-
-							read := 0
-							for i := 0; i < viper.GetInt(packetCountFlag); i++ {
-								buf := make([]byte, viper.GetInt(packetLengthFlag))
-
-								n, err := peer.Conn.Read(buf)
-								if err != nil {
-									if viper.GetBool(verboseFlag) {
-										log.Println("Could not read from peer, stopping")
-									}
-
-									return
-								}
-
-								read += n
-							}
-
-							if _, err := peer.Conn.Write(make([]byte, acklen)); err != nil {
-								if viper.GetBool(verboseFlag) {
-									log.Println("Could not write to peer, stopping")
-								}
-
-								return
-							}
-
-							duration := time.Since(start)
-
-							speed := (float64(read) / duration.Seconds()) / 1000000
-
-							if speed < float64(minSpeed) {
-								minSpeed = speed
-							}
-
-							if speed > float64(maxSpeed) {
-								maxSpeed = speed
-							}
-
-							log.Printf("%.3f MB/s (%.3f Mb/s) (%v MB read in %v)", speed, speed*8, read/1000000, duration)
-
-							totalTransferred += read
-						}
-					}()
-				} else {
-					go func() {
-						defer func() {
-							fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-
-							printTotals()
-						}()
-
-						for {
-							start := time.Now()
-
-							written := 0
-							for i := 0; i < viper.GetInt(packetCountFlag); i++ {
-								buf := make([]byte, viper.GetInt(packetLengthFlag))
-								if _, err := rand.Read(buf); err != nil {
-									errs <- err
-
-									return
-								}
-
-								n, err := peer.Conn.Write(buf)
-								if err != nil {
-									if viper.GetBool(verboseFlag) {
-										log.Println("Could not write to peer, stopping")
-									}
-
-									return
-								}
-
-								written += n
-							}
-
-							buf := make([]byte, acklen)
-							if _, err := peer.Conn.Read(buf); err != nil {
-								if viper.GetBool(verboseFlag) {
-									log.Println("Could not read from peer, stopping")
-								}
-
-								return
-							}
-
-							duration := time.Since(start)
-
-							speed := (float64(written) / duration.Seconds()) / 1000000
-
-							if speed < float64(minSpeed) {
-								minSpeed = speed
-							}
-
-							if speed > float64(maxSpeed) {
-								maxSpeed = speed
-							}
-
-							log.Printf("%.3f MB/s (%.3f Mb/s) (%v MB written in %v)", speed, speed*8, written/1000000, duration)
-
-							totalTransferred += written
-						}
-					}()
-				}
-			}
+		if err := adapter.Open(); err != nil {
+			return err
 		}
+
+		s := make(chan os.Signal)
+		signal.Notify(s, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-s
+
+			if !viper.GetBool(serverFlag) && acked {
+				l := totaled.Listener(0)
+				defer l.Close()
+
+				adapter.GatherTotals()
+
+				<-l.Ch()
+			}
+
+			if err := adapter.Close(); err != nil {
+				panic(err)
+			}
+
+			os.Exit(0)
+		}()
+
+		return adapter.Wait()
 	},
 }
 
