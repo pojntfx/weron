@@ -19,9 +19,10 @@ var (
 
 type NamedAdapterConfig struct {
 	*AdapterConfig
-	IDChannel string
-	Names     []string
-	Kicks     time.Duration
+	IDChannel   string
+	Names       []string
+	Kicks       time.Duration
+	IsIDClaimed func(map[string]struct{}, string) bool
 }
 
 type NamedAdapter struct {
@@ -56,6 +57,14 @@ func NewNamedAdapter(
 
 	if config.IDChannel == "" {
 		config.IDChannel = "wrtcid.id"
+	}
+
+	if config.IsIDClaimed == nil {
+		config.IsIDClaimed = func(ids map[string]struct{}, id string) bool {
+			_, ok := ids[id]
+
+			return ok
+		}
 	}
 
 	return &NamedAdapter{
@@ -330,7 +339,7 @@ func (a *NamedAdapter) Open() (chan string, error) {
 									}
 								}
 
-								if _, ok := gng.IDs[id]; ok {
+								if a.config.IsIDClaimed(gng.IDs, id) {
 									if a.config.Verbose {
 										log.Println("Sending kick to", id)
 									}
