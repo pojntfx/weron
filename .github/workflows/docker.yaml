@@ -17,7 +17,7 @@ jobs:
         target:
           - src: .
             image: ghcr.io/pojntfx/weron
-            arch: "linux/amd64,linux/arm/v5,linux/arm/v7,linux/arm64/v8,linux/386,linux/mips64le,linux/ppc64le,linux/s390x"
+            arch: "linux/amd64,linux/arm/v5,linux/arm/v7,linux/arm64/v8,linux/386,linux/ppc64le,linux/s390x"
 
     steps:
       - name: Maximize build space
