@@ -96,7 +96,7 @@ var vpnEthernetCmd = &cobra.Command{
 }
 
 func init() {
-	vpnEthernetCmd.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
+	vpnEthernetCmd.PersistentFlags().String(raddrFlag, "wss://weron.herokuapp.com/", "Remote address")
 	vpnEthernetCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	vpnEthernetCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	vpnEthernetCmd.PersistentFlags().String(passwordFlag, "", "Password for community")

@@ -5,17 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/pojntfx/weron/pkg/services"
+	"github.com/pojntfx/weron/pkg/wrtcchat"
 	"github.com/pojntfx/weron/pkg/wrtcconn"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/teivah/broadcast"
 )
 
 const (
@@ -74,26 +73,45 @@ var chatCmd = &cobra.Command{
 		q.Set("password", viper.GetString(passwordFlag))
 		u.RawQuery = q.Encode()
 
-		adapter := wrtcconn.NewNamedAdapter(
+		id := ""
+		adapter := wrtcchat.NewAdapter(
 			u.String(),
 			viper.GetString(keyFlag),
 			viper.GetStringSlice(iceFlag),
-			viper.GetStringSlice(channelsFlag),
-			&wrtcconn.NamedAdapterConfig{
-				AdapterConfig: &wrtcconn.AdapterConfig{
-					Timeout:    viper.GetDuration(timeoutFlag),
-					Verbose:    viper.GetBool(verboseFlag),
-					ForceRelay: viper.GetBool(forceRelayFlag),
+			&wrtcchat.AdapterConfig{
+				OnSignalerConnect: func(s string) {
+					id = s
+
+					fmt.Printf("\n%v!\n", id)
 				},
-				IDChannel: viper.GetString(idChannelFlag),
-				Names:     viper.GetStringSlice(namesFlag),
-				Kicks:     viper.GetDuration(kicksFlag),
+				OnPeerConnect: func(peerID, channelID string) {
+					fmt.Printf("\r\u001b[0K+%v@%v\n", peerID, channelID)
+					fmt.Printf("\r\u001b[0K%v> ", id)
+				},
+				OnPeerDisconnected: func(peerID, channelID string) {
+					fmt.Printf("\r\u001b[0K-%v@%v\n", peerID, channelID)
+					fmt.Printf("\r\u001b[0K%v> ", id)
+				},
+				OnMessage: func(m wrtcchat.Message) {
+					fmt.Printf("\r\u001b[0K%v@%v: %s\n", m.PeerID, m.ChannelID, m.Body)
+					fmt.Printf("\r\u001b[0K%v> ", id)
+				},
+				Channels: viper.GetStringSlice(channelsFlag),
+				NamedAdapterConfig: &wrtcconn.NamedAdapterConfig{
+					AdapterConfig: &wrtcconn.AdapterConfig{
+						Timeout:    viper.GetDuration(timeoutFlag),
+						Verbose:    viper.GetBool(verboseFlag),
+						ForceRelay: viper.GetBool(forceRelayFlag),
+					},
+					IDChannel: viper.GetString(idChannelFlag),
+					Names:     viper.GetStringSlice(namesFlag),
+					Kicks:     viper.GetDuration(kicksFlag),
+				},
 			},
 			ctx,
 		)
 
-		ids, err := adapter.Open()
-		if err != nil {
+		if err := adapter.Open(); err != nil {
 			return err
 		}
 		defer func() {
@@ -102,65 +120,21 @@ var chatCmd = &cobra.Command{
 			}
 		}()
 
-		lines := broadcast.NewRelay[[]byte]()
 		go func() {
 			reader := bufio.NewScanner(os.Stdin)
 
 			for reader.Scan() {
-				lines.NotifyCtx(ctx, []byte(reader.Text()+"\n"))
+				adapter.SendMessage([]byte(reader.Text() + "\n"))
+				fmt.Printf("\r\u001b[0K%v> ", id)
 			}
 		}()
 
-		id := ""
-		for {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case id = <-ids:
-				fmt.Printf("\n%v!\n", id)
-			case err = <-adapter.Err():
-				return err
-			case peer := <-adapter.Accept():
-				fmt.Printf("\r\u001b[0K+%v@%v\n", peer.PeerID, peer.ChannelID)
-				fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
-
-				l := lines.Listener(0)
-
-				go func() {
-					defer func() {
-						fmt.Printf("\r\u001b[0K-%v@%v\n", peer.PeerID, peer.ChannelID)
-						fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
-
-						l.Close()
-					}()
-
-					reader := bufio.NewScanner(peer.Conn)
-					for reader.Scan() {
-						fmt.Printf("\r\u001b[0K%v@%v: %v\n", peer.PeerID, peer.ChannelID, reader.Text())
-						fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
-					}
-				}()
-
-				go func() {
-					for msg := range l.Ch() {
-						if _, err := peer.Conn.Write(msg); err != nil {
-							if viper.GetBool(verboseFlag) {
-								log.Println("Could not write to peer, stopping")
-							}
-
-							return
-						}
-
-						fmt.Printf("\r\u001b[0K%v@%v> ", id, peer.ChannelID)
-					}
-				}()
-			}
-		}
+		return adapter.Wait()
 	},
 }
 
 func init() {
-	chatCmd.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
+	chatCmd.PersistentFlags().String(raddrFlag, "wss://weron.herokuapp.com/", "Remote address")
 	chatCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	chatCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	chatCmd.PersistentFlags().String(passwordFlag, "", "Password for community")

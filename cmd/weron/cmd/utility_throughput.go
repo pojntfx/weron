@@ -156,7 +156,7 @@ var utilityThroughputCmd = &cobra.Command{
 }
 
 func init() {
-	utilityThroughputCmd.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
+	utilityThroughputCmd.PersistentFlags().String(raddrFlag, "wss://weron.herokuapp.com/", "Remote address")
 	utilityThroughputCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	utilityThroughputCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	utilityThroughputCmd.PersistentFlags().String(passwordFlag, "", "Password for community")

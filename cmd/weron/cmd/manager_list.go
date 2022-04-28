@@ -85,7 +85,7 @@ func init() {
 func addRemoteFlags(f *pflag.FlagSet) {
 	f.String(apiUsernameFlag, "admin", "Username for the management API (can also be set using the API_USERNAME env variable). Ignored if any of the OIDC parameters are set.")
 	f.String(apiPasswordFlag, "", "Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.")
-	f.String(raddrFlag, "https://weron.up.railway.app/", "Remote address")
+	f.String(raddrFlag, "https://weron.herokuapp.com/", "Remote address")
 }
 
 func validateRemoteFlags(cmd *cobra.Command, args []string) error {
