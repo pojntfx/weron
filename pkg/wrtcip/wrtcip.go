@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
+	"net/netip"
 	"runtime"
 	"strings"
 	"sync"
@@ -23,12 +25,13 @@ const (
 )
 
 type AdapterConfig struct {
-	*wrtcconn.AdapterConfig
+	*wrtcconn.NamedAdapterConfig
 	Device             string
 	OnSignalerConnect  func(string)
 	OnPeerConnect      func(string)
 	OnPeerDisconnected func(string)
-	IPs                []string
+	CIDRs              []string
+	MaxRetries         int
 	Parallel           int
 }
 
@@ -40,7 +43,7 @@ type Adapter struct {
 	ctx      context.Context
 
 	cancel  context.CancelFunc
-	adapter *wrtcconn.Adapter
+	adapter *wrtcconn.NamedAdapter
 	tun     *water.Interface
 	mtu     int
 	ids     chan string
@@ -91,7 +94,7 @@ func (a *Adapter) Open() error {
 		return err
 	}
 
-	for _, rawIP := range a.config.IPs {
+	for _, rawIP := range a.config.CIDRs {
 		ip, _, err := net.ParseCIDR(rawIP)
 		if err != nil {
 			if a.config.Verbose {
@@ -106,23 +109,84 @@ func (a *Adapter) Open() error {
 			continue
 		}
 
-		if err = setIPAddress(a.tun.Name(), rawIP, ip.To4() != nil); err != nil {
+	}
+
+	rawNames := make([][]string, a.config.MaxRetries)
+	for _, cidr := range a.config.CIDRs {
+		prefix, err := netip.ParsePrefix(cidr)
+		if err != nil {
 			return err
+		}
+
+		cidrIPs := []string{}
+		i := 0
+		for addr := prefix.Addr(); prefix.Contains(addr); addr = addr.Next() {
+			if i >= a.config.MaxRetries+2 {
+				break
+			}
+
+			cidrIPs = append(cidrIPs, fmt.Sprintf("%v/%v", addr.String(), prefix.Bits()))
+
+			i++
+		}
+
+		if prefix.Addr().Is4() && len(cidrIPs) > 2 {
+			cidrIPs = cidrIPs[1 : len(cidrIPs)-1]
+		}
+
+		for i, cidrIP := range cidrIPs {
+			if i >= a.config.MaxRetries {
+				break
+			}
+
+			rawNames[i] = append(rawNames[i], cidrIP)
 		}
 	}
 
-	data, err := json.Marshal(a.config.IPs)
-	if err != nil {
-		return err
-	}
-	a.config.AdapterConfig.ID = string(data)
+	names := []string{}
+	for _, rawName := range rawNames {
+		name, err := json.Marshal(rawName)
+		if err != nil {
+			return err
+		}
 
-	a.adapter = wrtcconn.NewAdapter(
+		names = append(names, string(name))
+	}
+
+	a.config.NamedAdapterConfig.Names = names
+	a.config.NamedAdapterConfig.IsIDClaimed = func(theirRawIPs map[string]struct{}, s string) bool {
+		ourIPs := []string{}
+		if err := json.Unmarshal([]byte(s), &ourIPs); err != nil {
+			return true
+		}
+
+		for theirRawIP := range theirRawIPs {
+			for _, ourRawIP := range ourIPs {
+				theirIP, _, err := net.ParseCIDR(theirRawIP)
+				if err != nil {
+					return true
+				}
+
+				ourIP, _, err := net.ParseCIDR(ourRawIP)
+				if err != nil {
+					return true
+				}
+
+				if theirIP.Equal(ourIP) {
+					return true
+				}
+			}
+		}
+
+		return false
+	}
+
+	a.adapter = wrtcconn.NewNamedAdapter(
 		a.signaler,
 		a.key,
 		strings.Split(strings.Join(a.ice, ","), ","),
 		[]string{services.IPPrimary},
-		a.config.AdapterConfig,
+		a.config.NamedAdapterConfig,
 		a.ctx,
 	)
 
@@ -211,9 +275,36 @@ func (a *Adapter) Wait() error {
 		select {
 		case <-a.ctx.Done():
 			return a.ctx.Err()
+		case err := <-a.adapter.Err():
+			return err
 		case id := <-a.ids:
 			if a.config.OnSignalerConnect != nil {
 				a.config.OnSignalerConnect(id)
+			}
+
+			ips := []string{}
+			if err := json.Unmarshal([]byte(id), &ips); err != nil {
+				return err
+			}
+
+			for _, rawIP := range ips {
+				ip, _, err := net.ParseCIDR(rawIP)
+				if err != nil {
+					if a.config.Verbose {
+						log.Println("Could not parse IP address, skipping")
+					}
+
+					continue
+				}
+
+				// macOS does not support IPv4 TUN
+				if runtime.GOOS == "darwin" && ip.To4() != nil {
+					continue
+				}
+
+				if err = setIPAddress(a.tun.Name(), rawIP, ip.To4() != nil); err != nil {
+					return err
+				}
 			}
 
 			if err := setLinkUp(a.tun.Name()); err != nil {

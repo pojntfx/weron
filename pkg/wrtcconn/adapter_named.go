@@ -11,6 +11,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	v1 "github.com/pojntfx/weron/pkg/api/webrtc/v1"
+	"github.com/pojntfx/weron/pkg/services"
 )
 
 var (
@@ -22,7 +23,7 @@ type NamedAdapterConfig struct {
 	IDChannel   string
 	Names       []string
 	Kicks       time.Duration
-	IsIDClaimed func(map[string]struct{}, string) bool
+	IsIDClaimed func(theirs map[string]struct{}, ours string) bool
 }
 
 type NamedAdapter struct {
@@ -56,7 +57,7 @@ func NewNamedAdapter(
 	}
 
 	if config.IDChannel == "" {
-		config.IDChannel = "wrtcid.id"
+		config.IDChannel = services.IDGeneral
 	}
 
 	if config.IsIDClaimed == nil {
