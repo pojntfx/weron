@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pojntfx/weron/pkg/services"
 	"github.com/pojntfx/weron/pkg/wrtcconn"
 	"github.com/pojntfx/weron/pkg/wrtcip"
 	"github.com/spf13/cobra"
@@ -22,7 +23,8 @@ var (
 )
 
 const (
-	ipsFlag = "ips"
+	ipsFlag        = "ips"
+	maxRetriesFlag = "max-retries"
 )
 
 var vpnIPCmd = &cobra.Command{
@@ -84,12 +86,17 @@ var vpnIPCmd = &cobra.Command{
 				OnPeerDisconnected: func(s string) {
 					log.Println("Disconnected from peer", s)
 				},
-				IPs:      viper.GetStringSlice(ipsFlag),
-				Parallel: viper.GetInt(parallelFlag),
-				AdapterConfig: &wrtcconn.AdapterConfig{
-					Timeout:    viper.GetDuration(timeoutFlag),
-					Verbose:    viper.GetBool(verboseFlag),
-					ForceRelay: viper.GetBool(forceRelayFlag),
+				CIDRs:      viper.GetStringSlice(ipsFlag),
+				MaxRetries: viper.GetInt(maxRetriesFlag),
+				Parallel:   viper.GetInt(parallelFlag),
+				NamedAdapterConfig: &wrtcconn.NamedAdapterConfig{
+					AdapterConfig: &wrtcconn.AdapterConfig{
+						Timeout:    viper.GetDuration(timeoutFlag),
+						Verbose:    viper.GetBool(verboseFlag),
+						ForceRelay: viper.GetBool(forceRelayFlag),
+					},
+					IDChannel: viper.GetString(idChannelFlag),
+					Kicks:     viper.GetDuration(kicksFlag),
 				},
 			},
 			ctx,
@@ -121,6 +128,9 @@ func init() {
 	vpnIPCmd.PersistentFlags().String(devFlag, "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
 	vpnIPCmd.PersistentFlags().StringSlice(ipsFlag, []string{""}, "Comma-separated list of IP addresses to give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported; on macOS, IPv4 addresses are ignored)")
 	vpnIPCmd.PersistentFlags().Int(parallelFlag, runtime.NumCPU(), "Amount of threads to use to decode frames")
+	vpnIPCmd.PersistentFlags().String(idChannelFlag, services.IPID, "Channel to use to negotiate names")
+	vpnIPCmd.PersistentFlags().Duration(kicksFlag, time.Second*5, "Time to wait for kicks")
+	vpnIPCmd.PersistentFlags().Int(maxRetriesFlag, 200, "Maximum amount of times to try and claim an IP address")
 
 	viper.AutomaticEnv()
 
