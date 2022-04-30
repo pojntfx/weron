@@ -2,15 +2,19 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/go-redis/redis/v8"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/pojntfx/weron/internal/brokers"
 )
 
 const (
 	topicKick           = "kick"
 	topicMessagesPrefix = "messages."
+)
+
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type CommunitiesBroker struct {

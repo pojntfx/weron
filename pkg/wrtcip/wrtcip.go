@@ -3,7 +3,6 @@ package wrtcip
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/pojntfx/weron/pkg/services"
 	"github.com/pojntfx/weron/pkg/wrtcconn"
 	"github.com/songgao/water"
@@ -22,6 +22,10 @@ import (
 
 const (
 	headerLength = 22
+)
+
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type AdapterConfig struct {
