@@ -2,13 +2,17 @@ package wrtcmgr
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/pojntfx/weron/internal/persisters"
+)
+
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type Manager struct {

@@ -3,7 +3,6 @@ package wrtcsgl
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -16,6 +15,7 @@ import (
 	rediserr "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/pojntfx/weron/internal/authn"
 	"github.com/pojntfx/weron/internal/authn/basic"
 	"github.com/pojntfx/weron/internal/authn/oidc"
@@ -33,6 +33,8 @@ var (
 	errMissingPassword  = errors.New("missing password")
 
 	upgrader = websocket.Upgrader{}
+
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type connection struct {

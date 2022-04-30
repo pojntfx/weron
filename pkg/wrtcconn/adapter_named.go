@@ -2,12 +2,13 @@ package wrtcconn
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"strings"
 	"sync"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/mitchellh/mapstructure"
 	v1 "github.com/pojntfx/weron/pkg/api/webrtc/v1"
@@ -16,6 +17,8 @@ import (
 
 var (
 	ErrAllNamesClaimed = errors.New("all available names have been claimed")
+
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type NamedAdapterConfig struct {

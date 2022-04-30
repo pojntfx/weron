@@ -2,7 +2,6 @@ package wrtcconn
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log"
