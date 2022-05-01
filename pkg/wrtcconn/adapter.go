@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -15,6 +14,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	websocketapi "github.com/pojntfx/weron/internal/api/websocket"
 	"github.com/pojntfx/weron/internal/encryption"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -38,7 +38,6 @@ type Peer struct {
 
 type AdapterConfig struct {
 	Timeout             time.Duration
-	Verbose             bool
 	ID                  string
 	ForceRelay          bool
 	OnSignalerReconnect func()
@@ -74,7 +73,6 @@ func NewAdapter(
 	if config == nil {
 		config = &AdapterConfig{
 			Timeout:    time.Second * 10,
-			Verbose:    false,
 			ID:         "",
 			ForceRelay: false,
 		}
@@ -114,6 +112,8 @@ func (a *Adapter) Open() (chan string, error) {
 	for _, ice := range a.ice {
 		// Skip empty server configs
 		if strings.TrimSpace(ice) == "" {
+			log.Trace().Msg("Skipping empty server config")
+
 			continue
 		}
 
@@ -159,14 +159,10 @@ func (a *Adapter) Open() (chan string, error) {
 			func() {
 				defer func() {
 					if err := recover(); err != nil {
-						if a.config.Verbose {
-							log.Println("closed connection to signaler with address", u.String()+":", err, "(wrong username or password?)")
-						}
+						log.Debug().Str("address", u.String()).Err(err.(error)).Msg("Closed connection to signaler (wrong username or password?)")
 					}
 
-					if a.config.Verbose {
-						log.Println("Reconnecting to signaler with address", u.String(), "in", a.config.Timeout)
-					}
+					log.Debug().Str("address", u.String()).Dur("timeout", a.config.Timeout).Msg("Reconnecting to signaler")
 
 					if a.config.OnSignalerReconnect != nil {
 						a.config.OnSignalerReconnect()
@@ -184,9 +180,7 @@ func (a *Adapter) Open() (chan string, error) {
 				}
 
 				defer func() {
-					if a.config.Verbose {
-						log.Println("Disconnected from signaler with address", u.String())
-					}
+					log.Debug().Str("address", u.String()).Msg("Disconnected from signaler")
 
 					if err := conn.Close(); err != nil {
 						panic(err)
@@ -217,9 +211,7 @@ func (a *Adapter) Open() (chan string, error) {
 					return conn.SetReadDeadline(time.Now().Add(a.config.Timeout))
 				})
 
-				if a.config.Verbose {
-					log.Println("Connected to signaler with address", u.String())
-				}
+				log.Debug().Str("address", u.String()).Msg("Connected to signaler")
 
 				inputs := make(chan []byte)
 				errs := make(chan error)
@@ -258,9 +250,7 @@ func (a *Adapter) Open() (chan string, error) {
 
 					a.lines <- p
 
-					if a.config.Verbose {
-						log.Println("Introduced to signaler with address", u.String(), "and ID", id)
-					}
+					log.Debug().Str("address", u.String()).Str("id", id).Msg("Introduced to signaler")
 				}()
 
 				pings := time.NewTicker(a.config.Timeout / 2)
@@ -273,22 +263,27 @@ func (a *Adapter) Open() (chan string, error) {
 					case input := <-inputs:
 						input, err = encryption.Decrypt(input, []byte(a.key))
 						if err != nil {
-							if a.config.Verbose {
-								log.Println("Could not decrypt message with length", len(input), "for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-							}
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Int("len", len(input)).
+								Str("community", community).
+								Str("id", id).Msg("Could not decrypt message from signaler, skipping")
 
 							continue
 						}
 
-						if a.config.Verbose {
-							log.Println("Received message with length", len(input), "from signaler with address", conn.RemoteAddr(), "in community", community)
-						}
+						log.Trace().
+							Str("address", conn.RemoteAddr().String()).
+							Int("len", len(input)).
+							Str("community", community).
+							Str("id", id).Msg("Received message from signaler")
 
 						var message websocketapi.Message
 						if err := json.Unmarshal(input, &message); err != nil {
-							if a.config.Verbose {
-								log.Println("Could not unmarshal message for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-							}
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Str("community", community).
+								Str("id", id).Msg("Could not unmarshal message from signaler, skipping")
 
 							continue
 						}
@@ -297,16 +292,18 @@ func (a *Adapter) Open() (chan string, error) {
 						case websocketapi.TypeIntroduction:
 							var introduction websocketapi.Introduction
 							if err := json.Unmarshal(input, &introduction); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not unmarshal introduction for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-								}
+								log.Debug().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Could not unmarshal introduction from signaler, skipping")
 
 								continue
 							}
 
-							if a.config.Verbose {
-								log.Println("Received introduction", introduction, "from signaler with address", conn.RemoteAddr(), "in community", community)
-							}
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Str("community", community).
+								Str("id", id).Msg("Received introduction from signaler")
 
 							iid := uuid.NewString()
 
@@ -325,9 +322,7 @@ func (a *Adapter) Open() (chan string, error) {
 
 							c.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
 								if pcs == webrtc.PeerConnectionStateDisconnected {
-									if a.config.Verbose {
-										log.Println("Disconnected from peer", introduction.From)
-									}
+									log.Debug().Str("peerID", introduction.From).Msg("Disconnected from peer")
 
 									peerLock.Lock()
 									defer peerLock.Unlock()
@@ -335,17 +330,13 @@ func (a *Adapter) Open() (chan string, error) {
 									c, ok := peers[introduction.From]
 
 									if !ok {
-										if a.config.Verbose {
-											log.Println("Could not find connection for peer", introduction.From, ", skipping")
-										}
+										log.Debug().Str("peerID", introduction.From).Msg("Could not find connection for peer, skipping")
 
 										return
 									}
 
 									if c.iid != iid {
-										if a.config.Verbose {
-											log.Println("Peer", introduction.From, ", already rejoined, not disconnecting")
-										}
+										log.Debug().Str("peerID", introduction.From).Msg("Peer already rejoined, not disconnecting")
 
 										return
 									}
@@ -368,9 +359,11 @@ func (a *Adapter) Open() (chan string, error) {
 
 							c.OnICECandidate(func(i *webrtc.ICECandidate) {
 								if i != nil {
-									if a.config.Verbose {
-										log.Println("Created ICE candidate", i, "for signaler with address", conn.RemoteAddr(), "in community", community)
-									}
+									log.Trace().
+										Str("address", conn.RemoteAddr().String()).
+										Str("len", i.String()).
+										Str("community", community).
+										Str("id", id).Msg("Created ICE candidate")
 
 									p, err := json.Marshal(websocketapi.NewCandidate(id, introduction.From, []byte(i.ToJSON().Candidate)))
 									if err != nil {
@@ -380,9 +373,12 @@ func (a *Adapter) Open() (chan string, error) {
 									go func() {
 										a.lines <- p
 
-										if a.config.Verbose {
-											log.Println("Sent candidate to signaler with address", u.String(), "and ID", id, "to client", introduction.From)
-										}
+										log.Debug().
+											Str("address", conn.RemoteAddr().String()).
+											Str("community", community).
+											Str("id", id).
+											Str("client", introduction.From).
+											Msg("Sent ICE candidate to signaler")
 									}()
 								}
 							})
@@ -398,14 +394,17 @@ func (a *Adapter) Open() (chan string, error) {
 									panic(err)
 								}
 
-								if a.config.Verbose {
-									log.Println("Created data channel with ID", channelID, " using signaler with address", conn.RemoteAddr(), "in community", community)
-								}
+								log.Trace().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("channelID", channelID).
+									Msg("Created data channel")
 
 								dc.OnOpen(func() {
-									if a.config.Verbose {
-										log.Println("Connected to channel", dc.Label(), "with peer", introduction.From)
-									}
+									log.Debug().
+										Str("label", dc.Label()).
+										Str("peer", introduction.From).
+										Msg("Connected to channel")
 
 									c, err := dc.Detach()
 									if err != nil {
@@ -425,28 +424,26 @@ func (a *Adapter) Open() (chan string, error) {
 								})
 
 								dc.OnClose(func() {
-									if a.config.Verbose {
-										log.Println("Disconnected from channel", dc.Label(), "with peer", introduction.From)
-									}
+									log.Debug().
+										Str("label", dc.Label()).
+										Str("peer", introduction.From).
+										Msg("Disconnected from channel")
 
 									peerLock.Lock()
 									defer peerLock.Unlock()
 									peer, ok := peers[introduction.From]
 									if !ok {
-										if a.config.Verbose {
-											log.Println("Could not find peer", introduction.From, ", skipping")
-
-										}
+										log.Debug().Str("peerID", introduction.From).Msg("Could not find peer, skipping")
 
 										return
 									}
 
 									channel, ok := peer.channels[dc.Label()]
 									if !ok {
-										if a.config.Verbose {
-											log.Println("Could not find channel", dc.Label(), "for peer", introduction.From, ", skipping")
-
-										}
+										log.Debug().
+											Str("peerID", introduction.From).
+											Str("channelID", dc.Label()).
+											Msg("Could not find channel, skipping")
 
 										return
 									}
@@ -486,9 +483,7 @@ func (a *Adapter) Open() (chan string, error) {
 									old, ok := peers[introduction.From]
 									if ok {
 										// Disconnect the old peer
-										if a.config.Verbose {
-											log.Println("Disconnected from peer", introduction.From)
-										}
+										log.Debug().Str("peerID", introduction.From).Msg("Disconnected from peer")
 
 										for _, channel := range old.channels {
 											if err := channel.Close(); err != nil {
@@ -508,9 +503,12 @@ func (a *Adapter) Open() (chan string, error) {
 									go func() {
 										a.lines <- p
 
-										if a.config.Verbose {
-											log.Println("Sent offer to signaler with address", u.String(), "and ID", id, "to client", introduction.From)
-										}
+										log.Debug().
+											Str("address", conn.RemoteAddr().String()).
+											Str("community", community).
+											Str("id", id).
+											Str("client", introduction.From).
+											Msg("Sent offer to signaler")
 									}()
 								}
 							}
@@ -518,24 +516,27 @@ func (a *Adapter) Open() (chan string, error) {
 						case websocketapi.TypeOffer:
 							var offer websocketapi.Exchange
 							if err := json.Unmarshal(input, &offer); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not unmarshal offer for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-								}
+								log.Debug().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Could not unmarshal offer from signaler, skipping")
 
 								continue
-							}
-
-							if a.config.Verbose {
-								log.Println("Received offer", offer, "from signaler with address", conn.RemoteAddr(), "in community", community)
 							}
 
 							if offer.To != id {
-								if a.config.Verbose {
-									log.Println("Discarding offer", offer, "from signaler with address", conn.RemoteAddr(), "in community", community, "because it is not intended for this client")
-								}
+								log.Trace().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Discarding offer from signaler because it is not intended for this client")
 
 								continue
 							}
+
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Str("community", community).
+								Str("id", id).Msg("Received offer from signaler")
 
 							iid := uuid.NewString()
 
@@ -554,26 +555,20 @@ func (a *Adapter) Open() (chan string, error) {
 
 							c.OnConnectionStateChange(func(pcs webrtc.PeerConnectionState) {
 								if pcs == webrtc.PeerConnectionStateDisconnected {
-									if a.config.Verbose {
-										log.Println("Disconnected from peer", offer.From)
-									}
+									log.Debug().Str("peerID", offer.From).Msg("Disconnected from peer")
 
 									peerLock.Lock()
 									defer peerLock.Unlock()
 
 									c, ok := peers[offer.From]
 									if !ok {
-										if a.config.Verbose {
-											log.Println("Could not find connection for peer", offer.From, ", skipping")
-										}
+										log.Debug().Str("peerID", offer.From).Msg("Could not find connection for peer, skipping")
 
 										return
 									}
 
 									if c.iid != iid {
-										if a.config.Verbose {
-											log.Println("Peer", offer.From, ", already rejoined, not disconnecting")
-										}
+										log.Debug().Str("peerID", offer.From).Msg("Peer already rejoined, not disconnecting")
 
 										return
 									}
@@ -594,9 +589,11 @@ func (a *Adapter) Open() (chan string, error) {
 
 							c.OnICECandidate(func(i *webrtc.ICECandidate) {
 								if i != nil {
-									if a.config.Verbose {
-										log.Println("Created ICE candidate", i, "for signaler with address", conn.RemoteAddr(), "in community", community)
-									}
+									log.Trace().
+										Str("address", conn.RemoteAddr().String()).
+										Str("len", i.String()).
+										Str("community", community).
+										Str("id", id).Msg("Created ICE candidate")
 
 									p, err := json.Marshal(websocketapi.NewCandidate(id, offer.From, []byte(i.ToJSON().Candidate)))
 									if err != nil {
@@ -606,18 +603,22 @@ func (a *Adapter) Open() (chan string, error) {
 									go func() {
 										a.lines <- p
 
-										if a.config.Verbose {
-											log.Println("Sent candidate to signaler with address", u.String(), "and ID", id, "to client", offer.From)
-										}
+										log.Debug().
+											Str("address", conn.RemoteAddr().String()).
+											Str("community", community).
+											Str("id", id).
+											Str("client", offer.From).
+											Msg("Sent ICE candidate to signaler")
 									}()
 								}
 							})
 
 							c.OnDataChannel(func(dc *webrtc.DataChannel) {
 								dc.OnOpen(func() {
-									if a.config.Verbose {
-										log.Println("Connected to channel", dc.Label(), "with peer", offer.From)
-									}
+									log.Debug().
+										Str("label", dc.Label()).
+										Str("peer", offer.From).
+										Msg("Connected to channel")
 
 									c, err := dc.Detach()
 									if err != nil {
@@ -637,18 +638,19 @@ func (a *Adapter) Open() (chan string, error) {
 								})
 
 								dc.OnClose(func() {
-									if a.config.Verbose {
-										log.Println("Disconnected from channel", dc.Label(), "with peer", offer.From)
-									}
+									log.Debug().
+										Str("label", dc.Label()).
+										Str("peer", offer.From).
+										Msg("Disconnected from channel")
 
 									peerLock.Lock()
 									defer peerLock.Unlock()
 									channel, ok := peers[offer.From].channels[dc.Label()]
 									if !ok {
-										if a.config.Verbose {
-											log.Println("Could not find channel", dc.Label(), "for peer", offer.From, ", skipping")
-
-										}
+										log.Debug().
+											Str("peerID", offer.From).
+											Str("channelID", dc.Label()).
+											Msg("Could not find channel, skipping")
 
 										return
 									}
@@ -663,9 +665,10 @@ func (a *Adapter) Open() (chan string, error) {
 
 							var sdp webrtc.SessionDescription
 							if err := json.Unmarshal(offer.Payload, &sdp); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not unmarshal SDP for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-								}
+								log.Debug().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Could not unmarshal SDP from signaler, skipping")
 
 								continue
 							}
@@ -708,48 +711,55 @@ func (a *Adapter) Open() (chan string, error) {
 										return
 									}
 
-									if a.config.Verbose {
-										log.Println("Added ICE candidate from signaler with address", u.String(), "and ID", id, "from client", offer.From)
-									}
+									log.Debug().
+										Str("address", conn.RemoteAddr().String()).
+										Str("community", community).
+										Str("id", id).
+										Str("peerID", offer.From).
+										Msg("Added ICE candidate from signaler")
 								}
 							}()
 
 							go func() {
 								a.lines <- p
 
-								if a.config.Verbose {
-									log.Println("Sent answer to signaler with address", u.String(), "and ID", id, "to client", offer.From)
-								}
+								log.Debug().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).
+									Str("client", offer.From).
+									Msg("Sent answer to signaler")
 							}()
 						case websocketapi.TypeCandidate:
 							var candidate websocketapi.Exchange
 							if err := json.Unmarshal(input, &candidate); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not unmarshal candidate for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-								}
+								log.Debug().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Could not unmarshal candidate from signaler, skipping")
 
 								continue
-							}
-
-							if a.config.Verbose {
-								log.Println("Received candidate from signaler with address", conn.RemoteAddr(), "in community", community)
 							}
 
 							if candidate.To != id {
-								if a.config.Verbose {
-									log.Println("Discarding candidate from signaler with address", conn.RemoteAddr(), "in community", community, "because it is not intended for this client")
-								}
+								log.Trace().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Discarding candidate from signaler because it is not intended for this client")
 
 								continue
 							}
+
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Str("community", community).
+								Str("id", id).Msg("Received candidate from signaler")
 
 							peerLock.Lock()
 							c, ok := peers[candidate.From]
 
 							if !ok {
-								if a.config.Verbose {
-									log.Println("Could not find connection for peer", candidate.From, ", skipping")
-								}
+								log.Debug().Str("peerID", candidate.From).Msg("Could not find connection for peer, skipping")
 
 								peerLock.Unlock()
 
@@ -759,9 +769,11 @@ func (a *Adapter) Open() (chan string, error) {
 							go func() {
 								defer func() {
 									if err := recover(); err != nil {
-										if a.config.Verbose {
-											log.Println("Gathering candidates has stopped, skipping candidate")
-										}
+										log.Debug().
+											Str("address", conn.RemoteAddr().String()).
+											Str("community", community).
+											Str("id", id).
+											Msg("Gathering candiates has stopped, skipping candidate")
 									}
 								}()
 
@@ -772,42 +784,44 @@ func (a *Adapter) Open() (chan string, error) {
 						case websocketapi.TypeAnswer:
 							var answer websocketapi.Exchange
 							if err := json.Unmarshal(input, &answer); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not unmarshal answer for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-								}
+								log.Debug().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Could not unmarshal answer from signaler, skipping")
 
 								continue
-							}
-
-							if a.config.Verbose {
-								log.Println("Received answer", answer, "from signaler with address", conn.RemoteAddr(), "in community", community)
 							}
 
 							if answer.To != id {
-								if a.config.Verbose {
-									log.Println("Discarding answer", answer, "from signaler with address", conn.RemoteAddr(), "in community", community, "because it is not intended for this client")
-								}
+								log.Trace().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Discarding answer from signaler because it is not intended for this client")
 
 								continue
 							}
+
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Str("community", community).
+								Str("id", id).Msg("Received answer from signaler")
 
 							peerLock.Lock()
 							c, ok := peers[answer.From]
 							peerLock.Unlock()
 
 							if !ok {
-								if a.config.Verbose {
-									log.Println("Could not find connection for peer", answer.From, ", skipping")
-								}
+								log.Debug().Str("peerID", answer.From).Msg("Could not find connection for peer, skipping")
 
 								continue
 							}
 
 							var sdp webrtc.SessionDescription
 							if err := json.Unmarshal(answer.Payload, &sdp); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not unmarshal SDP for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-								}
+								log.Debug().
+									Str("address", conn.RemoteAddr().String()).
+									Str("community", community).
+									Str("id", id).Msg("Could not unmarshal SDP from signaler, skipping")
 
 								continue
 							}
@@ -824,19 +838,28 @@ func (a *Adapter) Open() (chan string, error) {
 										return
 									}
 
-									if a.config.Verbose {
-										log.Println("Added ICE candidate from signaler with address", u.String(), "and ID", id, "from client", answer.From)
-									}
+									log.Debug().
+										Str("address", conn.RemoteAddr().String()).
+										Str("community", community).
+										Str("id", id).
+										Str("peerID", answer.From).
+										Msg("Added ICE candidate from signaler")
 								}
 							}()
 
-							if a.config.Verbose {
-								log.Println("Added answer from signaler with address", u.String(), "and ID", id, "from client", answer.From)
-							}
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Str("community", community).
+								Str("id", id).
+								Str("peerID", answer.From).
+								Msg("Added answer from signaler")
 						default:
-							if a.config.Verbose {
-								log.Println("Got message with unknown type", message.Type, "for signaler with address", conn.RemoteAddr(), "in community", community+", skipping")
-							}
+							log.Debug().
+								Str("address", conn.RemoteAddr().String()).
+								Str("community", community).
+								Str("id", id).
+								Str("type", message.Type).
+								Msg("Got message with unknown type from signaler")
 
 							continue
 						}
@@ -846,9 +869,12 @@ func (a *Adapter) Open() (chan string, error) {
 							panic(err)
 						}
 
-						if a.config.Verbose {
-							log.Println("Sending message with length", len(line), "to signaler with address", conn.RemoteAddr(), "in community", community)
-						}
+						log.Trace().
+							Str("address", conn.RemoteAddr().String()).
+							Str("community", community).
+							Str("id", id).
+							Int("len", len(line)).
+							Msg("Sending message to signaler")
 
 						if err := conn.WriteMessage(websocket.TextMessage, line); err != nil {
 							panic(err)
@@ -858,9 +884,11 @@ func (a *Adapter) Open() (chan string, error) {
 							panic(err)
 						}
 					case <-pings.C:
-						if a.config.Verbose {
-							log.Println("Sending ping to signaler with address", conn.RemoteAddr(), "in community", community)
-						}
+						log.Trace().
+							Str("address", conn.RemoteAddr().String()).
+							Str("community", community).
+							Str("id", id).
+							Msg("Sending ping to signaler")
 
 						if err := conn.SetWriteDeadline(time.Now().Add(a.config.Timeout)); err != nil {
 							panic(err)
