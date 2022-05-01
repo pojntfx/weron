@@ -859,7 +859,7 @@ func (a *Adapter) Open() (chan string, error) {
 								Str("community", community).
 								Str("id", id).
 								Str("type", message.Type).
-								Msg("Got message with unknown type from signaler")
+								Msg("Got message with unknown type from signaler, skipping")
 
 							continue
 						}
