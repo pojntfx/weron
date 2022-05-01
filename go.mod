@@ -14,6 +14,7 @@ require (
 	github.com/lib/pq v1.10.5
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pion/webrtc/v3 v3.1.34
+	github.com/rs/zerolog v1.26.1
 	github.com/rubenv/sql-migrate v1.1.1
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
 	github.com/spf13/cobra v1.4.0
