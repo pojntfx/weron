@@ -3,12 +3,12 @@ package wrtcconn
 import (
 	"context"
 	"errors"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/rs/zerolog/log"
 
 	"github.com/mitchellh/mapstructure"
 	v1 "github.com/pojntfx/weron/pkg/api/webrtc/v1"
@@ -136,9 +136,7 @@ func (a *NamedAdapter) Open() (chan string, error) {
 				id = ""
 				candidatesLock.Unlock()
 
-				if a.config.Verbose {
-					log.Println("Got ID", sid)
-				}
+				log.Debug().Str("id", sid).Msg("Claimed ID")
 
 				ready.Stop()
 				ready.Reset(a.config.Kicks)
@@ -163,23 +161,23 @@ func (a *NamedAdapter) Open() (chan string, error) {
 
 				peersLock.Lock()
 				for _, peer := range peers {
-					if a.config.Verbose {
-						log.Println("Sending claimed")
-					}
+					log.Debug().Str("id", id).Msg("Sending claimed")
 
 					d, err := json.Marshal(v1.NewClaimed(id))
 					if err != nil {
-						if a.config.Verbose {
-							log.Println("Could not marshal claimed")
-						}
+						log.Debug().
+							Str("id", id).
+							Err(err).
+							Msg("Could not marshal claimed")
 
 						continue
 					}
 
 					if _, err := peer[a.config.IDChannel].Conn.Write(d); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not send to peer, skipping")
-						}
+						log.Debug().
+							Str("channelID", peer[a.config.IDChannel].ChannelID).
+							Str("peerID", peer[a.config.IDChannel].PeerID).
+							Msg("Could not write to peer, stopping")
 
 						continue
 					}
@@ -228,17 +226,18 @@ func (a *NamedAdapter) Open() (chan string, error) {
 
 						defer func() {
 							if err := recover(); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not read/write from peer, stopping")
-
-									return
-								}
+								log.Debug().
+									Err(err.(error)).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Msg("Could not read/write from peer, stopping")
 							}
 
 							if rid != peer.PeerID {
-								if a.config.Verbose {
-									log.Println("Disconnected from peer", rid, "and channel", peer.ChannelID)
-								}
+								log.Debug().
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Msg("Disconnected from peer")
 							}
 
 							peersLock.Lock()
@@ -253,35 +252,46 @@ func (a *NamedAdapter) Open() (chan string, error) {
 						}()
 
 						greet := func() {
-							if a.config.Verbose {
-								log.Println("Sending greeting")
-							}
+							log.Debug().
+								Str("channelID", peer.ChannelID).
+								Str("peerID", rid).
+								Int("candidates", len(candidates)).
+								Int64("timestamp", timestamp).
+								Msg("Sending greeting")
 
 							if id == "" {
 								if err := e.Encode(v1.NewGreeting(candidates, timestamp)); err != nil {
-									if a.config.Verbose {
-										log.Println("Could not send to peer, stopping")
-									}
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Msg("Could not write greeting to peer, stopping")
 
 									return
 								}
 							} else {
 								if err := e.Encode(v1.NewGreeting(map[string]struct{}{id: {}}, timestamp)); err != nil {
-									if a.config.Verbose {
-										log.Println("Could not send to peer, stopping")
-									}
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Msg("Could not write greeting to peer, stopping")
 
 									return
 								}
 
-								if a.config.Verbose {
-									log.Println("Sending claimed")
-								}
+								log.Debug().
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Str("id", id).
+									Msg("Sending claimed")
 
 								if err := e.Encode(v1.NewClaimed(id)); err != nil {
-									if a.config.Verbose {
-										log.Println("Could not send to peer, stopping")
-									}
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Msg("Could not write claimed to peer, stopping")
 
 									return
 								}
@@ -294,47 +304,59 @@ func (a *NamedAdapter) Open() (chan string, error) {
 						for {
 							var j interface{}
 							if err := d.Decode(&j); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not read from peer, stopping")
-								}
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Msg("Could not read from peer, stopping")
 
 								return
 							}
 
-							var msg v1.Message
-							if err := mapstructure.Decode(j, &msg); err != nil {
-								if a.config.Verbose {
-									log.Println("Could not decode from peer, skipping")
-								}
+							var message v1.Message
+							if err := mapstructure.Decode(j, &message); err != nil {
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Msg("Could not decode message from peer, stopping")
 
 								continue
 							}
 
-							switch msg.Type {
+							switch message.Type {
 							case v1.TypeGreeting:
 								var gng v1.Greeting
 								if err := mapstructure.Decode(j, &gng); err != nil {
-									if a.config.Verbose {
-										log.Println("Could not decode from peer, skipping")
-									}
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Msg("Could not decode greeting from peer, stopping")
 
 									continue
 								}
 
-								if a.config.Verbose {
-									log.Println("Received greeting from", gng.IDs)
-								}
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Msg("Received greeting")
 
 								for gngID := range gng.IDs {
 									if _, ok := candidates[gngID]; id == "" && ok && timestamp < gng.Timestamp {
-										if a.config.Verbose {
-											log.Println("Sending backoff to", gngID)
-										}
+										log.Debug().
+											Str("channelID", peer.ChannelID).
+											Str("peerID", rid).
+											Str("id", gngID).
+											Msg("Sending backoff")
 
 										if err := e.Encode(v1.NewBackoff()); err != nil {
-											if a.config.Verbose {
-												log.Println("Could not send to peer, stopping")
-											}
+											log.Debug().
+												Err(err).
+												Str("channelID", peer.ChannelID).
+												Str("peerID", rid).
+												Msg("Could not write backoff to peer, stopping")
 
 											return
 										}
@@ -344,14 +366,19 @@ func (a *NamedAdapter) Open() (chan string, error) {
 								}
 
 								if a.config.IsIDClaimed(gng.IDs, id) {
-									if a.config.Verbose {
-										log.Println("Sending kick to", id)
-									}
+									log.Debug().
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Str("id", id).
+										Msg("Sending kick")
 
 									if err := e.Encode(v1.NewKick(id)); err != nil {
-										if a.config.Verbose {
-											log.Println("Could not send to peer, stopping")
-										}
+										log.Debug().
+											Err(err).
+											Str("channelID", peer.ChannelID).
+											Str("peerID", rid).
+											Str("id", id).
+											Msg("Could not send backoff to peer, stopping")
 
 										return
 									}
@@ -359,24 +386,31 @@ func (a *NamedAdapter) Open() (chan string, error) {
 							case v1.TypeKick:
 								var kck v1.Kick
 								if err := mapstructure.Decode(j, &kck); err != nil {
-									if a.config.Verbose {
-										log.Println("Could not decode from peer, skipping")
-									}
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Msg("Could not decode kick from peer, stopping")
 
 									continue
 								}
 
-								if a.config.Verbose {
-									log.Println("Received kick from", kck.ID)
-								}
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Str("id", kck.ID).
+									Msg("Received kick")
 
 								candidatesLock.Lock()
 								delete(candidates, kck.ID)
 								candidatesLock.Unlock()
 							case v1.TypeBackoff:
-								if a.config.Verbose {
-									log.Println("Received backoff")
-								}
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Msg("Received backoff")
 
 								ready.Stop()
 
@@ -388,23 +422,31 @@ func (a *NamedAdapter) Open() (chan string, error) {
 							case v1.TypeClaimed:
 								var clm v1.Claimed
 								if err := mapstructure.Decode(j, &clm); err != nil {
-									if a.config.Verbose {
-										log.Println("Could not decode from peer, skipping")
-									}
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Msg("Could not decode claimed from peer, stopping")
 
 									continue
 								}
 
-								if a.config.Verbose {
-									log.Println("Received claimed from", clm.ID)
-								}
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Str("id", clm.ID).
+									Msg("Received kick")
 
 								rid = clm.ID
 
 								if _, ok := peers[rid]; !ok {
-									if a.config.Verbose {
-										log.Println("Connected to peer", rid, "and channel", peer.ChannelID)
-									}
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", rid).
+										Str("id", clm.ID).
+										Msg("Connected to peer")
 								}
 
 								peersLock.Lock()
@@ -425,9 +467,11 @@ func (a *NamedAdapter) Open() (chan string, error) {
 								delete(peers, peer.PeerID)
 								peersLock.Unlock()
 							default:
-								if a.config.Verbose {
-									log.Println("Could not handle unknown message type from peer, skipping")
-								}
+								log.Debug().
+									Str("channelID", peer.ChannelID).
+									Str("peerID", rid).
+									Str("type", message.Type).
+									Msg("Got message with unknown type from peer, skipping")
 
 								continue
 							}
