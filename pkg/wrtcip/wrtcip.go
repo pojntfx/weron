@@ -37,6 +37,7 @@ type AdapterConfig struct {
 	CIDRs              []string
 	MaxRetries         int
 	Parallel           int
+	Static             bool
 }
 
 type Adapter struct {
@@ -115,46 +116,61 @@ func (a *Adapter) Open() error {
 
 	}
 
-	rawNames := make([][]string, a.config.MaxRetries)
-	for _, cidr := range a.config.CIDRs {
-		prefix, err := netip.ParsePrefix(cidr)
-		if err != nil {
-			return err
-		}
-
-		cidrIPs := []string{}
-		i := 0
-		for addr := prefix.Addr(); prefix.Contains(addr); addr = addr.Next() {
-			if i >= a.config.MaxRetries+2 {
-				break
-			}
-
-			cidrIPs = append(cidrIPs, fmt.Sprintf("%v/%v", addr.String(), prefix.Bits()))
-
-			i++
-		}
-
-		if prefix.Addr().Is4() && len(cidrIPs) > 2 {
-			cidrIPs = cidrIPs[1 : len(cidrIPs)-1]
-		}
-
-		for i, cidrIP := range cidrIPs {
-			if i >= a.config.MaxRetries {
-				break
-			}
-
-			rawNames[i] = append(rawNames[i], cidrIP)
-		}
-	}
-
 	names := []string{}
-	for _, rawName := range rawNames {
-		name, err := json.Marshal(rawName)
+	if a.config.Static {
+		for _, cidr := range a.config.CIDRs {
+			if _, err := netip.ParsePrefix(cidr); err != nil {
+				return err
+			}
+		}
+
+		name, err := json.Marshal(a.config.CIDRs)
 		if err != nil {
 			return err
 		}
 
 		names = append(names, string(name))
+	} else {
+		rawNames := make([][]string, a.config.MaxRetries)
+		for _, cidr := range a.config.CIDRs {
+			prefix, err := netip.ParsePrefix(cidr)
+			if err != nil {
+				return err
+			}
+
+			cidrIPs := []string{}
+			i := 0
+			for addr := prefix.Addr(); prefix.Contains(addr); addr = addr.Next() {
+				if i >= a.config.MaxRetries+2 {
+					break
+				}
+
+				cidrIPs = append(cidrIPs, fmt.Sprintf("%v/%v", addr.String(), prefix.Bits()))
+
+				i++
+			}
+
+			if prefix.Addr().Is4() && len(cidrIPs) > 2 {
+				cidrIPs = cidrIPs[1 : len(cidrIPs)-1]
+			}
+
+			for i, cidrIP := range cidrIPs {
+				if i >= a.config.MaxRetries {
+					break
+				}
+
+				rawNames[i] = append(rawNames[i], cidrIP)
+			}
+		}
+
+		for _, rawName := range rawNames {
+			name, err := json.Marshal(rawName)
+			if err != nil {
+				return err
+			}
+
+			names = append(names, string(name))
+		}
 	}
 
 	a.config.NamedAdapterConfig.Names = names

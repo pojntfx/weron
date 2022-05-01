@@ -25,6 +25,7 @@ var (
 const (
 	ipsFlag        = "ips"
 	maxRetriesFlag = "max-retries"
+	staticFlag     = "static"
 )
 
 var vpnIPCmd = &cobra.Command{
@@ -98,6 +99,7 @@ var vpnIPCmd = &cobra.Command{
 					IDChannel: viper.GetString(idChannelFlag),
 					Kicks:     viper.GetDuration(kicksFlag),
 				},
+				Static: viper.GetBool(staticFlag),
 			},
 			ctx,
 		)
@@ -126,7 +128,8 @@ func init() {
 	vpnIPCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	vpnIPCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
 	vpnIPCmd.PersistentFlags().String(devFlag, "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
-	vpnIPCmd.PersistentFlags().StringSlice(ipsFlag, []string{""}, "Comma-separated list of IP addresses to give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported; on macOS, IPv4 addresses are ignored)")
+	vpnIPCmd.PersistentFlags().StringSlice(ipsFlag, []string{""}, "Comma-separated list of IP networks to claim an IP address from and and give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported; on macOS, IPv4 addresses are ignored)")
+	vpnIPCmd.PersistentFlags().Bool(staticFlag, false, "Try to claim the exact IPs specified in the --"+ipsFlag+" flag statically instead of selecting a random one from the specified network")
 	vpnIPCmd.PersistentFlags().Int(parallelFlag, runtime.NumCPU(), "Amount of threads to use to decode frames")
 	vpnIPCmd.PersistentFlags().String(idChannelFlag, services.IPID, "Channel to use to negotiate names")
 	vpnIPCmd.PersistentFlags().Duration(kicksFlag, time.Second*5, "Time to wait for kicks")
