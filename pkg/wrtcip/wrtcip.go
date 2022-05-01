@@ -294,7 +294,11 @@ func (a *Adapter) Wait() error {
 	for {
 		select {
 		case <-a.ctx.Done():
-			return a.ctx.Err()
+			if err := a.ctx.Err(); err != context.Canceled {
+				return err
+			}
+
+			return nil
 		case err := <-a.adapter.Err():
 			return err
 		case id := <-a.ids:

@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/pojntfx/weron/pkg/wrtcconn"
@@ -93,7 +90,7 @@ var utilityThroughputCmd = &cobra.Command{
 			for {
 				select {
 				case <-ctx.Done():
-					if err := ctx.Err(); err != nil {
+					if err := ctx.Err(); err != context.Canceled {
 						panic(err)
 					}
 
@@ -129,27 +126,21 @@ var utilityThroughputCmd = &cobra.Command{
 		if err := adapter.Open(); err != nil {
 			return err
 		}
+		addInterruptHandler(
+			cancel,
+			adapter,
+			viper.GetBool(verboseFlag),
+			func() {
+				if !viper.GetBool(serverFlag) && acked {
+					l := totaled.Listener(0)
+					defer l.Close()
 
-		s := make(chan os.Signal)
-		signal.Notify(s, os.Interrupt, syscall.SIGTERM)
-		go func() {
-			<-s
+					adapter.GatherTotals()
 
-			if !viper.GetBool(serverFlag) && acked {
-				l := totaled.Listener(0)
-				defer l.Close()
-
-				adapter.GatherTotals()
-
-				<-l.Ch()
-			}
-
-			if err := adapter.Close(); err != nil {
-				panic(err)
-			}
-
-			os.Exit(0)
-		}()
+					<-l.Ch()
+				}
+			},
+		)
 
 		return adapter.Wait()
 	},

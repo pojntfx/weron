@@ -5,9 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 	"time"
 
 	"github.com/pojntfx/weron/pkg/wrtcsgl"
@@ -135,38 +133,7 @@ var signalerCmd = &cobra.Command{
 		if err := signaler.Open(); err != nil {
 			return err
 		}
-
-		s := make(chan os.Signal)
-		signal.Notify(s, os.Interrupt, syscall.SIGTERM)
-		go func() {
-			<-s
-
-			log.Println("Gracefully shutting down signaling server")
-
-			go func() {
-				<-s
-
-				log.Println("Forcing shutdown of signaling server")
-
-				cancel()
-
-				if err := signaler.Close(); err != nil {
-					panic(err)
-				}
-			}()
-
-			if err := signaler.Close(); err != nil {
-				panic(err)
-			}
-
-			cancel()
-		}()
-
-		defer func() {
-			if err := signaler.Close(); err != nil {
-				panic(err)
-			}
-		}()
+		addInterruptHandler(cancel, signaler, viper.GetBool(verboseFlag), nil)
 
 		log.Println("Listening on address", addr.String())
 
