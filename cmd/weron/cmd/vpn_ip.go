@@ -109,11 +109,7 @@ var vpnIPCmd = &cobra.Command{
 		if err := adapter.Open(); err != nil {
 			return err
 		}
-		defer func() {
-			if err := adapter.Close(); err != nil {
-				panic(err)
-			}
-		}()
+		addInterruptHandler(cancel, adapter, viper.GetBool(verboseFlag), nil)
 
 		return adapter.Wait()
 	},

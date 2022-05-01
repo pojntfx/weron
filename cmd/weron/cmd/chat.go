@@ -5,9 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pojntfx/weron/pkg/services"
@@ -32,6 +36,40 @@ var (
 	errMissingKey       = errors.New("missing key")
 	errMissingUsernames = errors.New("missing usernames")
 )
+
+func addInterruptHandler(cancel func(), closer io.Closer, verbose bool, before func()) {
+	s := make(chan os.Signal)
+	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-s
+
+		if before != nil {
+			before()
+		}
+
+		if verbose {
+			log.Println("Gracefully shutting down")
+		}
+
+		go func() {
+			<-s
+
+			if verbose {
+				log.Println("Forcing shutdown")
+			}
+
+			cancel()
+
+			os.Exit(1)
+		}()
+
+		if err := closer.Close(); err != nil {
+			panic(err)
+		}
+
+		cancel()
+	}()
+}
 
 var chatCmd = &cobra.Command{
 	Use:     "chat",
@@ -114,11 +152,7 @@ var chatCmd = &cobra.Command{
 		if err := adapter.Open(); err != nil {
 			return err
 		}
-		defer func() {
-			if err := adapter.Close(); err != nil {
-				panic(err)
-			}
-		}()
+		addInterruptHandler(cancel, adapter, viper.GetBool(verboseFlag), nil)
 
 		go func() {
 			reader := bufio.NewScanner(os.Stdin)
