@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"context"
-	"log"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/pojntfx/weron/pkg/wrtcsgl"
 	"github.com/spf13/cobra"
@@ -32,49 +33,37 @@ var signalerCmd = &cobra.Command{
 	Short:   "Start a signaling server",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if u := os.Getenv("API_USERNAME"); u != "" {
-			if viper.GetBool(verboseFlag) {
-				log.Println("Using username from API_USERNAME env variable")
-			}
+			log.Debug().Msg("Using username from API_USERNAME env variable")
 
 			viper.Set(apiUsernameFlag, u)
 		}
 
 		if u := os.Getenv("API_PASSWORD"); u != "" {
-			if viper.GetBool(verboseFlag) {
-				log.Println("Using password from API_PASSWORD env variable")
-			}
+			log.Debug().Msg("Using password from API_PASSWORD env variable")
 
 			viper.Set(apiPasswordFlag, u)
 		}
 
 		if u := os.Getenv("DATABASE_URL"); u != "" {
-			if viper.GetBool(verboseFlag) {
-				log.Println("Using database URL from DATABASE_URL env variable")
-			}
+			log.Debug().Msg("Using database URL from DATABASE_URL env variable")
 
 			viper.Set(postgresURLFlag, u)
 		}
 
 		if u := os.Getenv("REDIS_URL"); u != "" {
-			if viper.GetBool(verboseFlag) {
-				log.Println("Using broker URL from REDIS_URL env variable")
-			}
+			log.Debug().Msg("Using broker URL from REDIS_URL env variable")
 
 			viper.Set(redisURLFlag, u)
 		}
 
 		if u := os.Getenv("OIDC_ISSUER"); u != "" {
-			if viper.GetBool(verboseFlag) {
-				log.Println("Using OIDC issuer from OIDC_ISSUER env variable")
-			}
+			log.Debug().Msg("Using OIDC issuer from OIDC_ISSUER env variable")
 
 			viper.Set(oidcIssuerFlag, u)
 		}
 
 		if u := os.Getenv("OIDC_CLIENT_ID"); u != "" {
-			if viper.GetBool(verboseFlag) {
-				log.Println("Using OIDC client ID from OIDC_CLIENT_ID env variable")
-			}
+			log.Debug().Msg("Using OIDC client ID from OIDC_CLIENT_ID env variable")
 
 			viper.Set(oidcClientIDFlag, u)
 		}
@@ -95,9 +84,7 @@ var signalerCmd = &cobra.Command{
 		}
 
 		if port := os.Getenv("PORT"); port != "" {
-			if viper.GetBool(verboseFlag) {
-				log.Println("Using port from PORT env variable")
-			}
+			log.Debug().Msg("Using port from PORT env variable")
 
 			p, err := strconv.Atoi(port)
 			if err != nil {
@@ -119,12 +106,17 @@ var signalerCmd = &cobra.Command{
 				APIPassword:         viper.GetString(apiPasswordFlag),
 				OIDCIssuer:          viper.GetString(oidcIssuerFlag),
 				OIDCClientID:        viper.GetString(oidcClientIDFlag),
-				Verbose:             viper.GetBool(verboseFlag),
 				OnConnect: func(raddr, community string) {
-					log.Println("Connected to client with address", raddr, "in community", community)
+					log.Info().
+						Str("address", raddr).
+						Str("community", community).
+						Msg("Connected to client")
 				},
 				OnDisconnect: func(raddr, community string, err interface{}) {
-					log.Println("Disconnected from client with address", raddr, "in community", community)
+					log.Info().
+						Str("address", raddr).
+						Str("community", community).
+						Msg("Disconnected from client")
 				},
 			},
 			ctx,
@@ -133,9 +125,11 @@ var signalerCmd = &cobra.Command{
 		if err := signaler.Open(); err != nil {
 			return err
 		}
-		addInterruptHandler(cancel, signaler, viper.GetBool(verboseFlag), nil)
+		addInterruptHandler(cancel, signaler, nil)
 
-		log.Println("Listening on address", addr.String())
+		log.Info().
+			Str("address", addr.String()).
+			Msg("Listening")
 
 		return signaler.Wait()
 	},

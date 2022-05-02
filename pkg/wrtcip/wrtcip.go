@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"net"
 	"net/netip"
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -90,6 +91,8 @@ func NewAdapter(
 }
 
 func (a *Adapter) Open() error {
+	log.Trace().Msg("Opening adapter")
+
 	var err error
 	a.tun, err = water.New(water.Config{
 		DeviceType:             water.TUN,
@@ -102,11 +105,7 @@ func (a *Adapter) Open() error {
 	for _, rawIP := range a.config.CIDRs {
 		ip, _, err := net.ParseCIDR(rawIP)
 		if err != nil {
-			if a.config.Verbose {
-				log.Println("Could not parse IP address, skipping")
-			}
-
-			continue
+			return err
 		}
 
 		// macOS does not support IPv4 TUN
@@ -221,6 +220,8 @@ func (a *Adapter) Open() error {
 }
 
 func (a *Adapter) Close() error {
+	log.Trace().Msg("Closing adapter")
+
 	if err := a.tun.Close(); err != nil {
 		return err
 	}
@@ -239,18 +240,14 @@ func (a *Adapter) Wait() error {
 			buf := make([]byte, a.mtu+headerLength)
 
 			if _, err := a.tun.Read(buf); err != nil {
-				if a.config.Verbose {
-					log.Println("Could not read from TAP device, skipping")
-				}
+				log.Debug().Err(err).Msg("Could not read from TUN device, continuing")
 
 				continue
 			}
 
 			go func() {
 				if err := sem.Acquire(a.ctx, 1); err != nil {
-					if a.config.Verbose {
-						log.Println("Could not acquire semaphore, skipping")
-					}
+					log.Debug().Err(err).Msg("Could not acquire semaphore, stopping")
 
 					return
 				}
@@ -261,9 +258,7 @@ func (a *Adapter) Wait() error {
 				if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
 					var packet layers.IPv6
 					if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not unmarshal packet, skipping")
-						}
+						log.Debug().Err(err).Msg("Could not unmarshal packet, stopping")
 
 						return
 					} else {
@@ -278,9 +273,11 @@ func (a *Adapter) Wait() error {
 					// Send if matching destination, multicast or broadcast IP
 					if dst.Equal(peer.ip) || ((dst.IsMulticast() || dst.IsInterfaceLocalMulticast() || dst.IsInterfaceLocalMulticast()) && len(dst) == len(peer.ip)) || (peer.ip.To4() != nil && dst.Equal(getBroadcastAddr(peer.net))) {
 						if _, err := peer.Conn.Write(buf); err != nil {
-							if a.config.Verbose {
-								log.Println("Could not write to peer, skipping")
-							}
+							log.Debug().
+								Err(err).
+								Str("channelID", peer.ChannelID).
+								Str("peerID", peer.PeerID).
+								Msg("Could not write to peer, continuing")
 
 							continue
 						}
@@ -294,6 +291,8 @@ func (a *Adapter) Wait() error {
 	for {
 		select {
 		case <-a.ctx.Done():
+			log.Trace().Err(a.ctx.Err()).Msg("Context cancelled")
+
 			if err := a.ctx.Err(); err != context.Canceled {
 				return err
 			}
@@ -302,6 +301,8 @@ func (a *Adapter) Wait() error {
 		case err := <-a.adapter.Err():
 			return err
 		case id := <-a.ids:
+			log.Debug().Str("id", id).Msg("Connected to signaler")
+
 			if a.config.OnSignalerConnect != nil {
 				a.config.OnSignalerConnect(id)
 			}
@@ -314,9 +315,7 @@ func (a *Adapter) Wait() error {
 			for _, rawIP := range ips {
 				ip, _, err := net.ParseCIDR(rawIP)
 				if err != nil {
-					if a.config.Verbose {
-						log.Println("Could not parse IP address, skipping")
-					}
+					log.Debug().Err(err).Msg("Could not parse IP address, continuing")
 
 					continue
 				}
@@ -335,6 +334,8 @@ func (a *Adapter) Wait() error {
 				return err
 			}
 		case peer := <-a.adapter.Accept():
+			log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Connected to peer")
+
 			go func() {
 				if a.config.OnPeerConnect != nil {
 					a.config.OnPeerConnect(peer.PeerID)
@@ -342,9 +343,10 @@ func (a *Adapter) Wait() error {
 
 				ips := []string{}
 				if err := json.Unmarshal([]byte(peer.PeerID), &ips); err != nil {
-					if a.config.Verbose {
-						log.Println("Could not parse local IP addresses, skipping")
-					}
+					log.Debug().
+						Str("channelID", peer.ChannelID).
+						Str("peerID", peer.PeerID).
+						Err(err).Msg("Could not parse local IP address, stopping")
 
 					return
 				}
@@ -354,9 +356,11 @@ func (a *Adapter) Wait() error {
 				for _, rawIP := range ips {
 					ip, net, err := net.ParseCIDR(rawIP)
 					if err != nil {
-						if a.config.Verbose {
-							log.Println("Could not parse IP address, skipping")
-						}
+						log.Debug().
+							Str("channelID", peer.ChannelID).
+							Str("peerID", peer.PeerID).
+							Err(err).
+							Msg("Could not parse local IP address, continuing")
 
 						continue
 					}
@@ -368,6 +372,8 @@ func (a *Adapter) Wait() error {
 				peersLock.Unlock()
 
 				defer func() {
+					log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Disconnected from peer")
+
 					if a.config.OnPeerDisconnected != nil {
 						a.config.OnPeerDisconnected(peer.PeerID)
 					}
@@ -380,9 +386,10 @@ func (a *Adapter) Wait() error {
 				}()
 
 				if !valid {
-					if a.config.Verbose {
-						log.Println("Got peer with invalid IP addresses, skipping")
-					}
+					log.Debug().
+						Str("channelID", peer.ChannelID).
+						Str("peerID", peer.PeerID).
+						Msg("Got peer with invalid IP addresses, stopping")
 
 					return
 				}
@@ -391,17 +398,21 @@ func (a *Adapter) Wait() error {
 					buf := make([]byte, a.mtu+headerLength)
 
 					if _, err := peer.Conn.Read(buf); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not read from peer, stopping")
-						}
+						log.Debug().
+							Err(err).
+							Str("channelID", peer.ChannelID).
+							Str("peerID", peer.PeerID).
+							Msg("Could not read from peer, stopping")
 
 						return
 					}
 
 					if _, err := a.tun.Write(buf); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not write to TUN device, skipping")
-						}
+						log.Debug().
+							Err(err).
+							Str("channelID", peer.ChannelID).
+							Str("peerID", peer.PeerID).
+							Msg("Could not write to TUN device, continuing")
 
 						continue
 					}

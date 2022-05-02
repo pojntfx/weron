@@ -23,9 +23,9 @@ require (
 	github.com/teivah/broadcast v0.0.7-0.20220316095729-071f20229a32
 	github.com/vishvananda/netlink v1.1.0
 	github.com/volatiletech/null/v8 v8.1.2
-	github.com/volatiletech/sqlboiler/v4 v4.10.2
-	github.com/volatiletech/strmangle v0.0.3
-	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
+	github.com/volatiletech/sqlboiler/v4 v4.11.0
+	github.com/volatiletech/strmangle v0.0.4
+	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 

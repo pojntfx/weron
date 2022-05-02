@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	rediserr "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
@@ -25,7 +26,6 @@ import (
 	"github.com/pojntfx/weron/internal/persisters"
 	"github.com/pojntfx/weron/internal/persisters/memory"
 	"github.com/pojntfx/weron/internal/persisters/psql"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var (
@@ -50,7 +50,6 @@ type SignalerConfig struct {
 	APIPassword         string
 	OIDCIssuer          string
 	OIDCClientID        string
-	Verbose             bool
 
 	OnConnect    func(raddr string, community string)
 	OnDisconnect func(raddr string, community string, err interface{})
@@ -95,9 +94,7 @@ func NewSignaler(
 }
 
 func (s *Signaler) Open() error {
-	if s.config.Verbose {
-		boil.DebugMode = true
-	}
+	log.Trace().Msg("Opening signaler")
 
 	addr, err := net.ResolveTCPAddr("tcp", s.laddr)
 	if err != nil {
@@ -108,9 +105,7 @@ func (s *Signaler) Open() error {
 	if (strings.TrimSpace(s.config.OIDCIssuer) == "" && strings.TrimSpace(s.config.OIDCClientID) == "") && strings.TrimSpace(s.config.APIPassword) == "" {
 		managementAPIEnabled = false
 
-		if s.config.Verbose {
-			log.Println("API password not set, disabling management API")
-		}
+		log.Debug().Msg("API password not set, disabling management API")
 	}
 
 	if strings.TrimSpace(s.postgresURL) == "" {
@@ -165,25 +160,28 @@ func (s *Signaler) Open() error {
 
 			switch err {
 			case nil:
-				if s.config.Verbose {
-					log.Println("closed connection for client with address", raddr)
-				}
+				log.Debug().
+					Str("address", raddr).
+					Msg("Closed connection for client")
 			case http.StatusUnauthorized:
 				fallthrough
 			case http.StatusNotImplemented:
-				if s.config.Verbose {
-					log.Println("closed connection for client with address", raddr+":", err)
-				}
+				log.Debug().
+					Err(err.(error)).
+					Str("address", raddr).
+					Msg("Closed connection for client")
 			case http.StatusNotFound:
-				if s.config.Verbose {
-					log.Println("closed connection for client with address", raddr+":", err)
-				}
+				log.Debug().
+					Err(err.(error)).
+					Str("address", raddr).
+					Msg("Closed connection for client")
 			default:
 				rw.WriteHeader(http.StatusInternalServerError)
 
-				if s.config.Verbose {
-					log.Println("closed connection for client with address", raddr+":", err)
-				}
+				log.Debug().
+					Err(err.(error)).
+					Str("address", raddr).
+					Msg("Closed connection for client")
 			}
 		}()
 
@@ -257,9 +255,10 @@ func (s *Signaler) Open() error {
 				}
 				s.connectionsLock.Unlock()
 
-				if s.config.Verbose {
-					log.Println("Disconnected from client with address", raddr, "in community", community)
-				}
+				log.Debug().
+					Str("address", raddr).
+					Str("community", community).
+					Msg("Disconnected from client")
 
 				if s.config.OnDisconnect != nil {
 					s.config.OnDisconnect(raddr, community, err)
@@ -280,9 +279,10 @@ func (s *Signaler) Open() error {
 			}
 			s.connectionsLock.Unlock()
 
-			if s.config.Verbose {
-				log.Println("Connected to client with address", raddr, "in community", community)
-			}
+			log.Debug().
+				Str("address", raddr).
+				Str("community", community).
+				Msg("Connected from client")
 
 			if s.config.OnConnect != nil {
 				s.config.OnConnect(raddr, community)
@@ -312,9 +312,11 @@ func (s *Signaler) Open() error {
 						return
 					}
 
-					if s.config.Verbose {
-						log.Println("Received message with type", messageType, "from client with address", raddr, "in community", community)
-					}
+					log.Debug().
+						Str("address", raddr).
+						Str("community", community).
+						Int("type", messageType).
+						Msg("Received message")
 
 					if err := s.broker.PublishInput(s.ctx, brokers.Input{
 						Raddr:       raddr,
@@ -355,9 +357,10 @@ func (s *Signaler) Open() error {
 						panic(err)
 					}
 				case <-pings.C:
-					if s.config.Verbose {
-						log.Println("Sending ping to client with address", raddr, "in community", community)
-					}
+					log.Debug().
+						Str("address", raddr).
+						Str("community", community).
+						Msg("Sending ping to client")
 
 					if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 						panic(err)
@@ -495,6 +498,8 @@ func (s *Signaler) Open() error {
 }
 
 func (s *Signaler) Close() error {
+	log.Trace().Msg("Closing signaler")
+
 	s.connectionsLock.Lock()
 	defer s.connectionsLock.Unlock()
 	for c := range s.connections {

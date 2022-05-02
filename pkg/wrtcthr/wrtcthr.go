@@ -3,10 +3,11 @@ package wrtcthr
 import (
 	"context"
 	"crypto/rand"
-	"log"
 	"math"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/pojntfx/weron/pkg/services"
 	"github.com/pojntfx/weron/pkg/wrtcconn"
@@ -92,6 +93,8 @@ func NewAdapter(
 }
 
 func (a *Adapter) Open() error {
+	log.Trace().Msg("Opening adapter")
+
 	a.adapter = wrtcconn.NewAdapter(
 		a.signaler,
 		a.key,
@@ -113,6 +116,8 @@ func (a *Adapter) Open() error {
 }
 
 func (a *Adapter) Close() error {
+	log.Trace().Msg("Closing adapter")
+
 	a.closer.Close()
 
 	return a.adapter.Close()
@@ -124,6 +129,8 @@ func (a *Adapter) Wait() error {
 	for {
 		select {
 		case <-a.ctx.Done():
+			log.Trace().Err(a.ctx.Err()).Msg("Context cancelled")
+
 			if err := a.ctx.Err(); err != context.Canceled {
 				return err
 			}
@@ -132,13 +139,19 @@ func (a *Adapter) Wait() error {
 		case err := <-errs:
 			return err
 		case id := <-a.ids:
+			log.Debug().Str("id", id).Msg("Connected to signaler")
+
 			if a.config.OnSignalerConnect != nil {
 				a.config.OnSignalerConnect(id)
 			}
 		case peer := <-a.adapter.Accept():
+			log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Connected to peer")
+
 			if a.config.Server {
 				go func() {
 					defer func() {
+						log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Disconnected from peer")
+
 						if a.config.OnPeerDisconnected != nil {
 							a.config.OnPeerDisconnected(peer.PeerID)
 						}
@@ -155,9 +168,11 @@ func (a *Adapter) Wait() error {
 
 							n, err := peer.Conn.Read(buf)
 							if err != nil {
-								if a.config.Verbose {
-									log.Println("Could not read from peer, stopping")
-								}
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", peer.PeerID).
+									Msg("Could not read from peer, stopping")
 
 								return
 							}
@@ -166,9 +181,11 @@ func (a *Adapter) Wait() error {
 						}
 
 						if _, err := peer.Conn.Write(make([]byte, acklen)); err != nil {
-							if a.config.Verbose {
-								log.Println("Could not write to peer, stopping")
-							}
+							log.Debug().
+								Err(err).
+								Str("channelID", peer.ChannelID).
+								Str("peerID", peer.PeerID).
+								Msg("Could not write to peer, stopping")
 
 							return
 						}
@@ -234,9 +251,11 @@ func (a *Adapter) Wait() error {
 
 							n, err := peer.Conn.Write(buf)
 							if err != nil {
-								if a.config.Verbose {
-									log.Println("Could not write to peer, stopping")
-								}
+								log.Debug().
+									Err(err).
+									Str("channelID", peer.ChannelID).
+									Str("peerID", peer.PeerID).
+									Msg("Could not write to peer, stopping")
 
 								return
 							}
@@ -246,9 +265,11 @@ func (a *Adapter) Wait() error {
 
 						buf := make([]byte, acklen)
 						if _, err := peer.Conn.Read(buf); err != nil {
-							if a.config.Verbose {
-								log.Println("Could not read from peer, stopping")
-							}
+							log.Debug().
+								Err(err).
+								Str("channelID", peer.ChannelID).
+								Str("peerID", peer.PeerID).
+								Msg("Could not read from peer, stopping")
 
 							return
 						}

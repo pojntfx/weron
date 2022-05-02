@@ -2,10 +2,11 @@ package wrtceth
 
 import (
 	"context"
-	"log"
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -73,6 +74,8 @@ func NewAdapter(
 }
 
 func (a *Adapter) Open() error {
+	log.Trace().Msg("Opening adapter")
+
 	var err error
 	a.tap, err = water.New(water.Config{
 		DeviceType:             water.TAP,
@@ -107,6 +110,8 @@ func (a *Adapter) Open() error {
 }
 
 func (a *Adapter) Close() error {
+	log.Trace().Msg("Closing adapter")
+
 	if err := a.tap.Close(); err != nil {
 		return err
 	}
@@ -125,18 +130,14 @@ func (a *Adapter) Wait() error {
 			buf := make([]byte, a.mtu+ethernetHeaderLength)
 
 			if _, err := a.tap.Read(buf); err != nil {
-				if a.config.Verbose {
-					log.Println("Could not read from TAP device, skipping")
-				}
+				log.Debug().Err(err).Msg("Could not read from TAP device, continuing")
 
 				continue
 			}
 
 			go func() {
 				if err := sem.Acquire(a.ctx, 1); err != nil {
-					if a.config.Verbose {
-						log.Println("Could not acquire semaphore, skipping")
-					}
+					log.Debug().Err(err).Msg("Could not acquire semaphore, stopping")
 
 					return
 				}
@@ -144,9 +145,7 @@ func (a *Adapter) Wait() error {
 
 				var frame layers.Ethernet
 				if err := frame.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
-					if a.config.Verbose {
-						log.Println("Could not unmarshal frame, skipping")
-					}
+					log.Debug().Err(err).Msg("Could not unmarshal frame, stopping")
 
 					return
 				}
@@ -156,9 +155,11 @@ func (a *Adapter) Wait() error {
 					// Send if matching destination, multicast or broadcast MAC
 					if dst := frame.DstMAC.String(); dst == peer.PeerID || frame.DstMAC[1]&0b01 == 1 || dst == broadcastMAC {
 						if _, err := peer.Conn.Write(buf); err != nil {
-							if a.config.Verbose {
-								log.Println("Could not write to peer, skipping")
-							}
+							log.Debug().
+								Err(err).
+								Str("channelID", peer.ChannelID).
+								Str("peerID", peer.PeerID).
+								Msg("Could not write to peer, continuing")
 
 							continue
 						}
@@ -172,12 +173,16 @@ func (a *Adapter) Wait() error {
 	for {
 		select {
 		case <-a.ctx.Done():
+			log.Trace().Err(a.ctx.Err()).Msg("Context cancelled")
+
 			if err := a.ctx.Err(); err != context.Canceled {
 				return err
 			}
 
 			return nil
 		case id := <-a.ids:
+			log.Debug().Str("id", id).Msg("Connected to signaler")
+
 			if a.config.OnSignalerConnect != nil {
 				a.config.OnSignalerConnect(id)
 			}
@@ -186,12 +191,16 @@ func (a *Adapter) Wait() error {
 				return err
 			}
 		case peer := <-a.adapter.Accept():
+			log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Connected to peer")
+
 			if a.config.OnPeerConnect != nil {
 				a.config.OnPeerConnect(peer.PeerID)
 			}
 
 			go func() {
 				defer func() {
+					log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Disconnected from peer")
+
 					if a.config.OnPeerDisconnected != nil {
 						a.config.OnPeerDisconnected(peer.PeerID)
 					}
@@ -209,17 +218,21 @@ func (a *Adapter) Wait() error {
 					buf := make([]byte, a.mtu+ethernetHeaderLength)
 
 					if _, err := peer.Conn.Read(buf); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not read from peer, stopping")
-						}
+						log.Debug().
+							Err(err).
+							Str("channelID", peer.ChannelID).
+							Str("peerID", peer.PeerID).
+							Msg("Could not read from peer, stopping")
 
 						return
 					}
 
 					if _, err := a.tap.Write(buf); err != nil {
-						if a.config.Verbose {
-							log.Println("Could not write to TAP device, skipping")
-						}
+						log.Debug().
+							Err(err).
+							Str("channelID", peer.ChannelID).
+							Str("peerID", peer.PeerID).
+							Msg("Could not write to TAP device, continuing")
 
 						continue
 					}

@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"context"
-	"log"
 	"net/url"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/pojntfx/weron/pkg/wrtcconn"
 	"github.com/pojntfx/weron/pkg/wrtceth"
@@ -61,18 +62,23 @@ var vpnEthernetCmd = &cobra.Command{
 			&wrtceth.AdapterConfig{
 				Device: viper.GetString(devFlag),
 				OnSignalerConnect: func(s string) {
-					log.Println("Connected to signaler as", s)
+					log.Info().
+						Str("id", s).
+						Msg("Connected to signaler")
 				},
 				OnPeerConnect: func(s string) {
-					log.Println("Connected to peer", s)
+					log.Info().
+						Str("id", s).
+						Msg("Connected to peer")
 				},
 				OnPeerDisconnected: func(s string) {
-					log.Println("Disconnected from peer", s)
+					log.Info().
+						Str("id", s).
+						Msg("Disconnected from peer")
 				},
 				Parallel: viper.GetInt(parallelFlag),
 				AdapterConfig: &wrtcconn.AdapterConfig{
 					Timeout:    viper.GetDuration(timeoutFlag),
-					Verbose:    viper.GetBool(verboseFlag),
 					ID:         viper.GetString(macFlag),
 					ForceRelay: viper.GetBool(forceRelayFlag),
 				},
@@ -80,12 +86,14 @@ var vpnEthernetCmd = &cobra.Command{
 			ctx,
 		)
 
-		log.Println("Connecting to signaler", viper.GetString(raddrFlag))
+		log.Info().
+			Str("addr", viper.GetString(raddrFlag)).
+			Msg("Connecting to signaler")
 
 		if err := adapter.Open(); err != nil {
 			return err
 		}
-		addInterruptHandler(cancel, adapter, viper.GetBool(verboseFlag), nil)
+		addInterruptHandler(cancel, adapter, nil)
 
 		return adapter.Wait()
 	},
