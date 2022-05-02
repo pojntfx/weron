@@ -3,10 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/pojntfx/weron/pkg/wrtcconn"
 	"github.com/pojntfx/weron/pkg/wrtcthr"
@@ -63,17 +64,22 @@ var utilityThroughputCmd = &cobra.Command{
 			viper.GetStringSlice(iceFlag),
 			&wrtcthr.AdapterConfig{
 				OnSignalerConnect: func(s string) {
-					log.Println("Connected to signaler as", s)
+					log.Info().
+						Str("id", s).
+						Msg("Connected to signaler")
 				},
 				OnPeerConnect: func(s string) {
-					log.Println("Connected to peer", s)
+					log.Info().
+						Str("id", s).
+						Msg("Connected to peer")
 				},
 				OnPeerDisconnected: func(s string) {
-					log.Println("Disconnected from peer", s)
+					log.Info().
+						Str("id", s).
+						Msg("Disconnected from peer")
 				},
 				AdapterConfig: &wrtcconn.AdapterConfig{
 					Timeout:    viper.GetDuration(timeoutFlag),
-					Verbose:    viper.GetBool(verboseFlag),
 					ForceRelay: viper.GetBool(forceRelayFlag),
 				},
 				Server:       viper.GetBool(serverFlag),
@@ -96,8 +102,8 @@ var utilityThroughputCmd = &cobra.Command{
 
 					return
 				case ack := <-adapter.Acknowledgement():
-					log.Printf(
-						"%.3f MB/s (%.3f Mb/s) (%v MB read in %v)",
+					fmt.Printf(
+						"%.3f MB/s (%.3f Mb/s) (%v MB read in %v)\n",
 						ack.ThroughputMB,
 						ack.ThroughputMb,
 						ack.TransferredMB,
@@ -121,7 +127,9 @@ var utilityThroughputCmd = &cobra.Command{
 			}
 		}()
 
-		log.Println("Connecting to signaler", viper.GetString(raddrFlag))
+		log.Info().
+			Str("addr", viper.GetString(raddrFlag)).
+			Msg("Connecting to signaler")
 
 		if err := adapter.Open(); err != nil {
 			return err
@@ -129,7 +137,6 @@ var utilityThroughputCmd = &cobra.Command{
 		addInterruptHandler(
 			cancel,
 			adapter,
-			viper.GetBool(verboseFlag),
 			func() {
 				if !viper.GetBool(serverFlag) && acked {
 					l := totaled.Listener(0)

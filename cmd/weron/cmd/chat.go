@@ -6,13 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/pojntfx/weron/pkg/services"
 	"github.com/pojntfx/weron/pkg/wrtcchat"
@@ -37,7 +38,7 @@ var (
 	errMissingUsernames = errors.New("missing usernames")
 )
 
-func addInterruptHandler(cancel func(), closer io.Closer, verbose bool, before func()) {
+func addInterruptHandler(cancel func(), closer io.Closer, before func()) {
 	s := make(chan os.Signal)
 	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -47,16 +48,12 @@ func addInterruptHandler(cancel func(), closer io.Closer, verbose bool, before f
 			before()
 		}
 
-		if verbose {
-			log.Println("Gracefully shutting down")
-		}
+		log.Debug().Msg("Gracefully shutting down")
 
 		go func() {
 			<-s
 
-			if verbose {
-				log.Println("Forcing shutdown")
-			}
+			log.Debug().Msg("Forcing shutdown")
 
 			cancel()
 
@@ -138,7 +135,6 @@ var chatCmd = &cobra.Command{
 				NamedAdapterConfig: &wrtcconn.NamedAdapterConfig{
 					AdapterConfig: &wrtcconn.AdapterConfig{
 						Timeout:    viper.GetDuration(timeoutFlag),
-						Verbose:    viper.GetBool(verboseFlag),
 						ForceRelay: viper.GetBool(forceRelayFlag),
 					},
 					IDChannel: viper.GetString(idChannelFlag),
@@ -152,7 +148,7 @@ var chatCmd = &cobra.Command{
 		if err := adapter.Open(); err != nil {
 			return err
 		}
-		addInterruptHandler(cancel, adapter, viper.GetBool(verboseFlag), nil)
+		addInterruptHandler(cancel, adapter, nil)
 
 		go func() {
 			reader := bufio.NewScanner(os.Stdin)

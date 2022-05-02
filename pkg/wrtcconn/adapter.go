@@ -267,7 +267,7 @@ func (a *Adapter) Open() (chan string, error) {
 								Str("address", conn.RemoteAddr().String()).
 								Int("len", len(input)).
 								Str("community", community).
-								Str("id", id).Msg("Could not decrypt message from signaler, skipping")
+								Str("id", id).Msg("Could not decrypt message from signaler, continuing")
 
 							continue
 						}
@@ -283,7 +283,7 @@ func (a *Adapter) Open() (chan string, error) {
 							log.Debug().
 								Str("address", conn.RemoteAddr().String()).
 								Str("community", community).
-								Str("id", id).Msg("Could not unmarshal message from signaler, skipping")
+								Str("id", id).Msg("Could not unmarshal message from signaler, continuing")
 
 							continue
 						}
@@ -295,7 +295,7 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Debug().
 									Str("address", conn.RemoteAddr().String()).
 									Str("community", community).
-									Str("id", id).Msg("Could not unmarshal introduction from signaler, skipping")
+									Str("id", id).Msg("Could not unmarshal introduction from signaler, continuing")
 
 								continue
 							}
@@ -330,7 +330,7 @@ func (a *Adapter) Open() (chan string, error) {
 									c, ok := peers[introduction.From]
 
 									if !ok {
-										log.Debug().Str("peerID", introduction.From).Msg("Could not find connection for peer, skipping")
+										log.Debug().Str("peerID", introduction.From).Msg("Could not find connection for peer, continuing")
 
 										return
 									}
@@ -433,7 +433,7 @@ func (a *Adapter) Open() (chan string, error) {
 									defer peerLock.Unlock()
 									peer, ok := peers[introduction.From]
 									if !ok {
-										log.Debug().Str("peerID", introduction.From).Msg("Could not find peer, skipping")
+										log.Debug().Str("peerID", introduction.From).Msg("Could not find peer, continuing")
 
 										return
 									}
@@ -443,7 +443,7 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Debug().
 											Str("peerID", introduction.From).
 											Str("channelID", dc.Label()).
-											Msg("Could not find channel, skipping")
+											Msg("Could not find channel, continuing")
 
 										return
 									}
@@ -519,7 +519,7 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Debug().
 									Str("address", conn.RemoteAddr().String()).
 									Str("community", community).
-									Str("id", id).Msg("Could not unmarshal offer from signaler, skipping")
+									Str("id", id).Msg("Could not unmarshal offer from signaler, continuing")
 
 								continue
 							}
@@ -562,7 +562,7 @@ func (a *Adapter) Open() (chan string, error) {
 
 									c, ok := peers[offer.From]
 									if !ok {
-										log.Debug().Str("peerID", offer.From).Msg("Could not find connection for peer, skipping")
+										log.Debug().Str("peerID", offer.From).Msg("Could not find connection for peer, continuing")
 
 										return
 									}
@@ -650,7 +650,7 @@ func (a *Adapter) Open() (chan string, error) {
 										log.Debug().
 											Str("peerID", offer.From).
 											Str("channelID", dc.Label()).
-											Msg("Could not find channel, skipping")
+											Msg("Could not find channel, continuing")
 
 										return
 									}
@@ -668,7 +668,7 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Debug().
 									Str("address", conn.RemoteAddr().String()).
 									Str("community", community).
-									Str("id", id).Msg("Could not unmarshal SDP from signaler, skipping")
+									Str("id", id).Msg("Could not unmarshal SDP from signaler, continuing")
 
 								continue
 							}
@@ -736,7 +736,7 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Debug().
 									Str("address", conn.RemoteAddr().String()).
 									Str("community", community).
-									Str("id", id).Msg("Could not unmarshal candidate from signaler, skipping")
+									Str("id", id).Msg("Could not unmarshal candidate from signaler, continuing")
 
 								continue
 							}
@@ -759,7 +759,7 @@ func (a *Adapter) Open() (chan string, error) {
 							c, ok := peers[candidate.From]
 
 							if !ok {
-								log.Debug().Str("peerID", candidate.From).Msg("Could not find connection for peer, skipping")
+								log.Debug().Str("peerID", candidate.From).Msg("Could not find connection for peer, continuing")
 
 								peerLock.Unlock()
 
@@ -773,7 +773,7 @@ func (a *Adapter) Open() (chan string, error) {
 											Str("address", conn.RemoteAddr().String()).
 											Str("community", community).
 											Str("id", id).
-											Msg("Gathering candiates has stopped, skipping candidate")
+											Msg("Gathering candiates has stopped, continuing candidate")
 									}
 								}()
 
@@ -787,7 +787,7 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Debug().
 									Str("address", conn.RemoteAddr().String()).
 									Str("community", community).
-									Str("id", id).Msg("Could not unmarshal answer from signaler, skipping")
+									Str("id", id).Msg("Could not unmarshal answer from signaler, continuing")
 
 								continue
 							}
@@ -811,7 +811,7 @@ func (a *Adapter) Open() (chan string, error) {
 							peerLock.Unlock()
 
 							if !ok {
-								log.Debug().Str("peerID", answer.From).Msg("Could not find connection for peer, skipping")
+								log.Debug().Str("peerID", answer.From).Msg("Could not find connection for peer, continuing")
 
 								continue
 							}
@@ -821,7 +821,7 @@ func (a *Adapter) Open() (chan string, error) {
 								log.Debug().
 									Str("address", conn.RemoteAddr().String()).
 									Str("community", community).
-									Str("id", id).Msg("Could not unmarshal SDP from signaler, skipping")
+									Str("id", id).Msg("Could not unmarshal SDP from signaler, continuing")
 
 								continue
 							}
@@ -859,7 +859,7 @@ func (a *Adapter) Open() (chan string, error) {
 								Str("community", community).
 								Str("id", id).
 								Str("type", message.Type).
-								Msg("Got message with unknown type from signaler, skipping")
+								Msg("Got message with unknown type from signaler, continuing")
 
 							continue
 						}
@@ -907,6 +907,8 @@ func (a *Adapter) Open() (chan string, error) {
 }
 
 func (a *Adapter) Close() error {
+	log.Trace().Msg("Closing adapter")
+
 	a.done = true
 
 	a.cancel()

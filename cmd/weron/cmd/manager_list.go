@@ -5,9 +5,10 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/pojntfx/weron/pkg/wrtcmgr"
 	"github.com/spf13/cobra"
@@ -90,17 +91,13 @@ func addRemoteFlags(f *pflag.FlagSet) {
 
 func validateRemoteFlags(cmd *cobra.Command, args []string) error {
 	if u := os.Getenv("API_USERNAME"); u != "" {
-		if viper.GetBool(verboseFlag) {
-			log.Println("Using username from API_USERNAME env variable")
-		}
+		log.Debug().Msg("Using username from API_USERNAME env variable")
 
 		viper.Set(apiUsernameFlag, u)
 	}
 
 	if u := os.Getenv("API_PASSWORD"); u != "" {
-		if viper.GetBool(verboseFlag) {
-			log.Println("Using password from API_PASSWORD env variable")
-		}
+		log.Debug().Msg("Using password from API_PASSWORD env variable")
 
 		viper.Set(apiPasswordFlag, u)
 	}

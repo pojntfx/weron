@@ -471,7 +471,7 @@ func (a *NamedAdapter) Open() (chan string, error) {
 									Str("channelID", peer.ChannelID).
 									Str("peerID", rid).
 									Str("type", message.Type).
-									Msg("Got message with unknown type from peer, skipping")
+									Msg("Got message with unknown type from peer, continuing")
 
 								continue
 							}
@@ -486,6 +486,8 @@ func (a *NamedAdapter) Open() (chan string, error) {
 }
 
 func (a *NamedAdapter) Close() error {
+	log.Trace().Msg("Closing adapter")
+
 	return a.adapter.Close()
 }
 

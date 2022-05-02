@@ -151,7 +151,11 @@ func (a *Adapter) Wait() error {
 			go func() {
 				for msg := range l.Ch() {
 					if _, err := peer.Conn.Write(msg); err != nil {
-						log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Could not write to peer, stopping")
+						log.Debug().
+							Err(err).
+							Str("channelID", peer.ChannelID).
+							Str("peerID", peer.PeerID).
+							Msg("Could not write to peer, stopping")
 
 						return
 					}
