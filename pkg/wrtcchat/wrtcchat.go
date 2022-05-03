@@ -10,21 +10,24 @@ import (
 	"github.com/teivah/broadcast"
 )
 
+// Message is a chat message
 type Message struct {
-	PeerID    string
-	ChannelID string
-	Body      []byte
+	PeerID    string // ID of the peer that sent the message
+	ChannelID string // Channel to which the message has been sent
+	Body      []byte // Content of the message
 }
 
+// AdapterConfig configures the adapter
 type AdapterConfig struct {
 	*wrtcconn.NamedAdapterConfig
-	OnSignalerConnect  func(string)
-	OnPeerConnect      func(peerID string, channelID string)
-	OnPeerDisconnected func(peerID string, channelID string)
-	OnMessage          func(Message)
-	Channels           []string
+	OnSignalerConnect  func(string)                          // Handler to be called when the adapter has connected to the signaler
+	OnPeerConnect      func(peerID string, channelID string) // Handler to be called when the adapter has connected to a peer
+	OnPeerDisconnected func(peerID string, channelID string) // Handler to be called when the adapter has disconnected from a peer
+	OnMessage          func(Message)                         // Handler to be called when the adapter has received a message
+	Channels           []string                              // Channels to join
 }
 
+// Adapter provides a chat service
 type Adapter struct {
 	signaler string
 	key      string
@@ -39,6 +42,7 @@ type Adapter struct {
 	input *broadcast.Relay[[]byte]
 }
 
+// NewAdapter creates the adapter
 func NewAdapter(
 	signaler string,
 	key string,
@@ -66,6 +70,7 @@ func NewAdapter(
 	}
 }
 
+// Open connects the adapter to the signaler
 func (a *Adapter) Open() error {
 	log.Trace().Msg("Opening adapter")
 
@@ -87,6 +92,7 @@ func (a *Adapter) Open() error {
 	return err
 }
 
+// Close disconnects the adapter from the signaler
 func (a *Adapter) Close() error {
 	log.Trace().Msg("Closing adapter")
 
@@ -95,6 +101,7 @@ func (a *Adapter) Close() error {
 	return a.adapter.Close()
 }
 
+// Wait starts the transmission loop
 func (a *Adapter) Wait() error {
 	for {
 		select {
@@ -165,6 +172,7 @@ func (a *Adapter) Wait() error {
 	}
 }
 
+// SendMessage sends a message to all peers
 func (a *Adapter) SendMessage(body []byte) {
 	log.Trace().Bytes("body", body).Msg("Sending message")
 

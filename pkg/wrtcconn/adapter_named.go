@@ -16,19 +16,21 @@ import (
 )
 
 var (
-	ErrAllNamesClaimed = errors.New("all available names have been claimed")
+	ErrAllNamesClaimed = errors.New("all available names have been claimed") // All specified usernames have already been claimed by other peers
 
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
+// NamedAdapterConfig configures the adapter
 type NamedAdapterConfig struct {
 	*AdapterConfig
-	IDChannel   string
-	Names       []string
-	Kicks       time.Duration
-	IsIDClaimed func(theirs map[string]struct{}, ours string) bool
+	IDChannel   string                                             // Channel to use for ID negotiation
+	Names       []string                                           // Names to try and claim one of
+	Kicks       time.Duration                                      // Time to wait for kicks before claiming names
+	IsIDClaimed func(theirs map[string]struct{}, ours string) bool // Handler to be called when asked to compare own ID with an incoming greeting
 }
 
+// NamedAdapter provides a connection service with name conflict prevention
 type NamedAdapter struct {
 	signaler string
 	key      string
@@ -45,6 +47,7 @@ type NamedAdapter struct {
 	acceptedPeers chan *Peer
 }
 
+// NewNamedAdapter creates the adapter
 func NewNamedAdapter(
 	signaler string,
 	key string,
@@ -87,6 +90,7 @@ func NewNamedAdapter(
 	}
 }
 
+// Open connects the adapter to the signaler
 func (a *NamedAdapter) Open() (chan string, error) {
 	ready := time.NewTimer(a.config.Timeout + a.config.Kicks)
 
@@ -485,16 +489,19 @@ func (a *NamedAdapter) Open() (chan string, error) {
 	return a.names, nil
 }
 
+// Close disconnects the adapter from the signaler
 func (a *NamedAdapter) Close() error {
 	log.Trace().Msg("Closing adapter")
 
 	return a.adapter.Close()
 }
 
+// Err returns a channel on which all fatal errors will be sent
 func (a *NamedAdapter) Err() chan error {
 	return a.errs
 }
 
+// Accept returns a channel on which peers will be sent when they connect
 func (a *NamedAdapter) Accept() chan *Peer {
 	return a.acceptedPeers
 }
