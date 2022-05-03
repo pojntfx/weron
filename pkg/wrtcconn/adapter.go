@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	ErrInvalidTURNServerAddr   = errors.New("invalid TURN server address")
-	ErrMissingTURNCredentials  = errors.New("missing TURN server credentials")
-	ErrMissingForcedTURNServer = errors.New("TURN is forced, but no TURN server has been configured")
+	ErrInvalidTURNServerAddr   = errors.New("invalid TURN server address")                            // The specified TURN server address is invalid
+	ErrMissingTURNCredentials  = errors.New("missing TURN server credentials")                        // The specified TURN server is missing credentials
+	ErrMissingForcedTURNServer = errors.New("TURN is forced, but no TURN server has been configured") // All connections must use TURN, but no TURN server has been configured
 )
 
 type peer struct {
@@ -30,19 +30,22 @@ type peer struct {
 	iid        string
 }
 
+// Peer is a connected remote adapter
 type Peer struct {
-	PeerID    string
-	ChannelID string
-	Conn      io.ReadWriteCloser
+	PeerID    string             // ID of the peer
+	ChannelID string             // Channel on which the peer is connected to
+	Conn      io.ReadWriteCloser // Underlying connection to send/receive on
 }
 
+// AdapterConfig configures the adapter
 type AdapterConfig struct {
-	Timeout             time.Duration
-	ID                  string
-	ForceRelay          bool
-	OnSignalerReconnect func()
+	Timeout             time.Duration // Time to wait before retrying to connect to the signaler
+	ID                  string        // ID to claim without conflict resolution (default is UUID)
+	ForceRelay          bool          // Whether to block P2P connections
+	OnSignalerReconnect func()        // Handler to be called when the adapter has reconnected to the signaler
 }
 
+// NamedAdapter provides a connection service without name conflict prevention
 type Adapter struct {
 	signaler string
 	key      string
@@ -60,6 +63,7 @@ type Adapter struct {
 	api *webrtc.API
 }
 
+// NewAdapter creates the adapter
 func NewAdapter(
 	signaler string,
 	key string,
@@ -92,6 +96,7 @@ func NewAdapter(
 	}
 }
 
+// Open connects the adapter to the signaler
 func (a *Adapter) Open() (chan string, error) {
 	settingEngine := webrtc.SettingEngine{}
 	settingEngine.DetachDataChannels()
@@ -906,6 +911,7 @@ func (a *Adapter) Open() (chan string, error) {
 	return ids, nil
 }
 
+// Close disconnects the adapter from the signaler
 func (a *Adapter) Close() error {
 	log.Trace().Msg("Closing adapter")
 
@@ -918,6 +924,7 @@ func (a *Adapter) Close() error {
 	return nil
 }
 
+// Accept returns a channel on which peers will be sent when they connect
 func (a *Adapter) Accept() chan *Peer {
 	return a.peers
 }

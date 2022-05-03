@@ -21,15 +21,17 @@ const (
 	ethernetHeaderLength = 14
 )
 
+// AdapterConfig configures the adapter
 type AdapterConfig struct {
 	*wrtcconn.AdapterConfig
-	Device             string
-	OnSignalerConnect  func(string)
-	OnPeerConnect      func(string)
-	OnPeerDisconnected func(string)
-	Parallel           int
+	Device             string       // Name to give to the TAP device
+	OnSignalerConnect  func(string) // Handler to be called when the adapter has connected to the signaler
+	OnPeerConnect      func(string) // Handler to be called when the adapter has connected to a peer
+	OnPeerDisconnected func(string) // Handler to be called when the adapter has received a message
+	Parallel           int          // Maximum amount of goroutines to use to unmarshal ethernet frames
 }
 
+// Adapter provides an ethernet service
 type Adapter struct {
 	signaler string
 	key      string
@@ -44,6 +46,7 @@ type Adapter struct {
 	ids     chan string
 }
 
+// NewAdapter creates the adapter
 func NewAdapter(
 	signaler string,
 	key string,
@@ -73,6 +76,7 @@ func NewAdapter(
 	}
 }
 
+// Open connects the adapter to the signaler and creates the TAP device
 func (a *Adapter) Open() error {
 	log.Trace().Msg("Opening adapter")
 
@@ -109,6 +113,7 @@ func (a *Adapter) Open() error {
 	return err
 }
 
+// Close disconnects the adapter from the signaler and closes the TAP device
 func (a *Adapter) Close() error {
 	log.Trace().Msg("Closing adapter")
 
@@ -119,6 +124,7 @@ func (a *Adapter) Close() error {
 	return a.adapter.Close()
 }
 
+// Wait starts the transmission loop
 func (a *Adapter) Wait() error {
 	peers := map[string]*wrtcconn.Peer{}
 	var peersLock sync.Mutex

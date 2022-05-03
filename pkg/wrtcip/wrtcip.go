@@ -29,18 +29,20 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
+// AdapterConfig configures the adapter
 type AdapterConfig struct {
 	*wrtcconn.NamedAdapterConfig
-	Device             string
-	OnSignalerConnect  func(string)
-	OnPeerConnect      func(string)
-	OnPeerDisconnected func(string)
-	CIDRs              []string
-	MaxRetries         int
-	Parallel           int
-	Static             bool
+	Device             string       // Name to give to the TUN device
+	OnSignalerConnect  func(string) // Handler to be called when the adapter has connected to the signaler
+	OnPeerConnect      func(string) // Handler to be called when the adapter has connected to a peer
+	OnPeerDisconnected func(string) // Handler to be called when the adapter has received a message
+	CIDRs              []string     // IPv4 & IPv6 networks to join
+	MaxRetries         int          // Maximum amount of IP address to try and claim before giving up
+	Parallel           int          // Maximum amount of goroutines to use to unmarshal IP packets
+	Static             bool         // Claim the exact IP specified in the CIDR notation instead of selecting a random one from the networks
 }
 
+// Adapter provides an IP service
 type Adapter struct {
 	signaler string
 	key      string
@@ -61,6 +63,7 @@ type peerWithIP struct {
 	net *net.IPNet
 }
 
+// NewAdapter creates the adapter
 func NewAdapter(
 	signaler string,
 	key string,
@@ -90,6 +93,7 @@ func NewAdapter(
 	}
 }
 
+// Open connects the adapter to the signaler and creates the TUN device
 func (a *Adapter) Open() error {
 	log.Trace().Msg("Opening adapter")
 
@@ -219,6 +223,7 @@ func (a *Adapter) Open() error {
 	return err
 }
 
+// Close disconnects the adapter from the signaler and closes the TUN device
 func (a *Adapter) Close() error {
 	log.Trace().Msg("Closing adapter")
 
@@ -229,6 +234,7 @@ func (a *Adapter) Close() error {
 	return a.adapter.Close()
 }
 
+// Wait starts the transmission loop
 func (a *Adapter) Wait() error {
 	peers := map[string]*peerWithIP{}
 	var peersLock sync.Mutex

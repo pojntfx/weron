@@ -1,9 +1,10 @@
 package v1
 
+// Greeting is a claim for a set of IDs
 type Greeting struct {
 	Message
-	IDs       map[string]struct{} `json:"ids"`
-	Timestamp int64               `json:"timestamp"`
+	IDs       map[string]struct{} `json:"ids"`       // IDs to claim one of
+	Timestamp int64               `json:"timestamp"` // Timestamp to resolve conflicts
 }
 
 func NewGreeting(id map[string]struct{}, timestamp int64) *Greeting {
@@ -16,9 +17,10 @@ func NewGreeting(id map[string]struct{}, timestamp int64) *Greeting {
 	}
 }
 
+// Kick notifies peers that an ID has already been claimed
 type Kick struct {
 	Message
-	ID string `json:"id"`
+	ID string `json:"id"` // ID which has already been claimed
 }
 
 func NewKick(id string) *Kick {
@@ -30,6 +32,7 @@ func NewKick(id string) *Kick {
 	}
 }
 
+// Backoff asks a peer to back off from claiming IDs
 type Backoff struct {
 	Message
 }
@@ -42,9 +45,10 @@ func NewBackoff() *Backoff {
 	}
 }
 
+// Claimed notifies a peer that an ID has already been claimed
 type Claimed struct {
 	Message
-	ID string `json:"id"`
+	ID string `json:"id"` // ID which has already been claimed
 }
 
 func NewClaimed(id string) *Claimed {
