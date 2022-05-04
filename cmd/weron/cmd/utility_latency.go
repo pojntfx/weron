@@ -99,7 +99,7 @@ var utilityLatencyCommand = &cobra.Command{
 					}
 
 					return
-				case ack := <-adapter.Acknowledgement():
+				case ack := <-adapter.Acknowledgements():
 					fmt.Printf("%v B written and acknowledged in %v\n", ack.BytesWritten, ack.Latency)
 
 					acked = true
