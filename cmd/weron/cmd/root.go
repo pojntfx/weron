@@ -16,7 +16,8 @@ const (
 var rootCmd = &cobra.Command{
 	Use:   "weron",
 	Short: "WebRTC Overlay Networks",
-	Long: `Overlay networks based on WebRTC.
+	Long: `Lean, fast & secure overlay networks based on WebRTC.
+
 
 Find more information at:
 https://github.com/pojntfx/weron`,
