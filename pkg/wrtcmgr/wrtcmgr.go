@@ -15,6 +15,7 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
+// Manager manages a signaling server
 type Manager struct {
 	url      string
 	username string
@@ -22,6 +23,7 @@ type Manager struct {
 	ctx      context.Context
 }
 
+// NewManager creates the manager
 func NewManager(
 	url string,
 	username string,
@@ -36,6 +38,7 @@ func NewManager(
 	}
 }
 
+// CreatePersistentCommunity creates a persistent community, which will not be automatically deleted after the last peer leaves
 func (m *Manager) CreatePersistentCommunity(community string, password string) (*persisters.Community, error) {
 	hc := &http.Client{}
 
@@ -79,6 +82,7 @@ func (m *Manager) CreatePersistentCommunity(community string, password string) (
 	return &c, nil
 }
 
+// ListCommunities queries all communities
 func (m *Manager) ListCommunities() ([]persisters.Community, error) {
 	u, err := url.Parse(m.url)
 	if err != nil {
@@ -117,6 +121,7 @@ func (m *Manager) ListCommunities() ([]persisters.Community, error) {
 	return c, nil
 }
 
+// DeleteCommunity deletes a community and kicks all peers that joined it
 func (m *Manager) DeleteCommunity(community string) error {
 	hc := &http.Client{}
 

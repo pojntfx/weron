@@ -18,35 +18,39 @@ const (
 	acklen = 100
 )
 
+// AdapterConfig configures the adapter
 type AdapterConfig struct {
 	*wrtcconn.AdapterConfig
-	OnSignalerConnect  func(string)
-	OnPeerConnect      func(string)
-	OnPeerDisconnected func(string)
-	Server             bool
-	PacketCount        int
-	PacketLength       int
+	OnSignalerConnect  func(string) // Handler to be called when the adapter has connected to the signaler
+	OnPeerConnect      func(string) // Handler to be called when the adapter has connected to a peer
+	OnPeerDisconnected func(string) // Handler to be called when the adapter has received a message
+	Server             bool         // Whether to act as the server
+	PacketLength       int          // Length of the packet to measure latency with
+	PacketCount        int          // Amount of packets to send before measuring
 }
 
+// Totals are the total statistics
 type Totals struct {
-	ThroughputAverageMB float64
-	ThroughputAverageMb float64
+	ThroughputAverageMB float64 // Average total throughput in megabyte/s
+	ThroughputAverageMb float64 // Average total throughput in megabit/s
 
-	TransferredMB       int
-	TransferredDuration time.Duration
+	TransferredMB       int           // Total transfered amount in megabyte
+	TransferredDuration time.Duration // Total duration of transfer
 
-	ThroughputMin float64
-	ThroughputMax float64
+	ThroughputMin float64 // Minimum measured throughput
+	ThroughputMax float64 // Maximum measured throughput
 }
 
+// Acknowledgement is an individual datapoint
 type Acknowledgement struct {
-	ThroughputMB float64
-	ThroughputMb float64
+	ThroughputMB float64 // Average throughput in megabyte/s at this datapoint
+	ThroughputMb float64 // Average throughput in megabit/s at this datapoint
 
-	TransferredMB       int
-	TransferredDuration time.Duration
+	TransferredMB       int           // Transfered amount in megabyte at this datapoint
+	TransferredDuration time.Duration // Duration of transfer at this datapoint
 }
 
+// Adapter provides a throughput measurement service
 type Adapter struct {
 	signaler string
 	key      string
@@ -64,6 +68,7 @@ type Adapter struct {
 	closer *broadcast.Relay[struct{}]
 }
 
+// NewAdapter creates the adapter
 func NewAdapter(
 	signaler string,
 	key string,
@@ -92,6 +97,7 @@ func NewAdapter(
 	}
 }
 
+// Open connects the adapter to the signaler
 func (a *Adapter) Open() error {
 	log.Trace().Msg("Opening adapter")
 
@@ -115,6 +121,7 @@ func (a *Adapter) Open() error {
 	return err
 }
 
+// Close disconnects the adapter from the signaler and stops all measurements, resulting in the totals being yielded
 func (a *Adapter) Close() error {
 	log.Trace().Msg("Closing adapter")
 
@@ -123,6 +130,7 @@ func (a *Adapter) Close() error {
 	return a.adapter.Close()
 }
 
+// Wait starts the transmission and measurement loop
 func (a *Adapter) Wait() error {
 	errs := make(chan error)
 
@@ -301,14 +309,17 @@ func (a *Adapter) Wait() error {
 	}
 }
 
+// GatherTotals yields the total statistics
 func (a *Adapter) GatherTotals() {
 	a.closer.NotifyCtx(a.ctx, struct{}{})
 }
 
+// Totals returns a channel on which all total statistics will be sent
 func (a *Adapter) Totals() chan Totals {
 	return a.totals
 }
 
-func (a *Adapter) Acknowledgement() chan Acknowledgement {
+// Acknowledgements returns a channel on which all individual datapoints will be sent
+func (a *Adapter) Acknowledgements() chan Acknowledgement {
 	return a.acknowledgements
 }

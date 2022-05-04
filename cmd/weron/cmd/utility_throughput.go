@@ -101,7 +101,7 @@ var utilityThroughputCmd = &cobra.Command{
 					}
 
 					return
-				case ack := <-adapter.Acknowledgement():
+				case ack := <-adapter.Acknowledgements():
 					fmt.Printf(
 						"%.3f MB/s (%.3f Mb/s) (%v MB read in %v)\n",
 						ack.ThroughputMB,

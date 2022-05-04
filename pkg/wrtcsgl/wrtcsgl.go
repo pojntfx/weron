@@ -42,19 +42,21 @@ type connection struct {
 	closer chan struct{}
 }
 
+// SignalerConfig configures the adapter
 type SignalerConfig struct {
-	Heartbeat           time.Duration
-	Cleanup             bool
-	EphermalCommunities bool
-	APIUsername         string
-	APIPassword         string
-	OIDCIssuer          string
-	OIDCClientID        string
+	Heartbeat           time.Duration // Duration between heartbeats
+	Cleanup             bool          // Whether to cleanup leftover ephermal communities before starting
+	EphermalCommunities bool          // Whether to enable ephermal communities
+	APIUsername         string        // Username for the API endpoint
+	APIPassword         string        // Password for the API endpoint; ignored if any of the OIDC parameters are set
+	OIDCIssuer          string        // OpenID Connect issuer
+	OIDCClientID        string        // OpenID Connect client id
 
-	OnConnect    func(raddr string, community string)
-	OnDisconnect func(raddr string, community string, err interface{})
+	OnConnect    func(raddr string, community string)                  // Handler to be called when a client has connected to the signaler
+	OnDisconnect func(raddr string, community string, err interface{}) // Handler to be called when a client has disconnected from the signaler
 }
 
+// Signaler provides a WebRTC signaling server
 type Signaler struct {
 	laddr       string
 	postgresURL string
@@ -71,6 +73,7 @@ type Signaler struct {
 	closeKicks      func() error
 }
 
+// NewSignaler creates the signaler
 func NewSignaler(
 	laddr string,
 	dbURL string,
@@ -93,6 +96,7 @@ func NewSignaler(
 	}
 }
 
+// Open starts listening and connects to the database and broker
 func (s *Signaler) Open() error {
 	log.Trace().Msg("Opening signaler")
 
@@ -497,6 +501,7 @@ func (s *Signaler) Open() error {
 	return nil
 }
 
+// Close stops listening and disconnects from the database and broker
 func (s *Signaler) Close() error {
 	log.Trace().Msg("Closing signaler")
 
@@ -531,6 +536,7 @@ func (s *Signaler) Close() error {
 	return nil
 }
 
+// Wait waits for any errors
 func (s *Signaler) Wait() error {
 	for err := range s.errs {
 		if err != nil {
