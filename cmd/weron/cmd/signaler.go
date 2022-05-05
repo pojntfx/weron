@@ -139,7 +139,7 @@ func init() {
 	signalerCmd.PersistentFlags().String(laddrFlag, ":1337", "Listening address (can also be set using the PORT env variable)")
 	signalerCmd.PersistentFlags().Duration(heartbeatFlag, time.Second*10, "Time to wait for heartbeats")
 	signalerCmd.PersistentFlags().String(postgresURLFlag, "", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
-	signalerCmd.PersistentFlags().String(redisURLFlag, "", "URL of Redis database to use (i.e. redis://myuser:mypassword@localhost:6379/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
+	signalerCmd.PersistentFlags().String(redisURLFlag, "", "URL of Redis database to use (i.e. redis://myuser:mypassword@myhost:myport/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
 	signalerCmd.PersistentFlags().Bool(cleanupFlag, false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
 	signalerCmd.PersistentFlags().Bool(ephermalCommunitiesFlag, true, "Enable the creation of ephermal communities")
 	signalerCmd.PersistentFlags().String(apiUsernameFlag, "admin", "Username for the management API (can also be set using the API_USERNAME env variable). Ignored if any of the OIDC parameters are set.")
