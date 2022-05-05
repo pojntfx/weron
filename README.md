@@ -61,7 +61,11 @@ You can find binaries for more operating systems and architectures on [GitHub re
 
 ### 1. Start a Signaling Server with `weron signaler`
 
-While it is possible to use the hosted signaling server (which is currently hosted on `wss://weron.herokuapp.com/`), hosting the server yourself has many benefits, such as lower latency and better privacy. The signaling server can use an in-process broker with an in-memory database or Redis and PostgreSQL; for production use the latter configuration is strongly recommended, as it allows you to easily scale the signaling server horizontally.
+The signaling server connects peers with each other by exchanging connection information between them. It also manages access to communities through the `--password` flag of clients and can maintain persistent communities even after all peers have disconnected.
+
+While it is possible and resonably private (in addition to TLS, connection information is encrypted using the `--key` flag of clients) to use the hosted signaling server at `wss://weron.herokuapp.com/`, hosting it yourself has many benefits, such as lower latency and even better privacy.
+
+The signaling server can use an in-process broker with an in-memory database or Redis and PostgreSQL; for production use the latter configuration is strongly recommended, as it allows you to easily scale the signaling server horizontally. This is particularly important if you want to scale your server infrastructure across multiple continents, as intra-cloud backbones usually have lower latency than residental connections, which reduces the amount of time required to connect peers with each other.
 
 First, start Redis and Postgres:
 
@@ -84,8 +88,6 @@ To use it in production, put this signaling server behind a TLS-enabled reverse 
 ## Reference
 
 ### Command Line Arguments
-
-#### Global Arguments
 
 ```shell
 $ weron --help
@@ -112,6 +114,9 @@ Flags:
 
 Use "weron [command] --help" for more information about a command.
 ```
+
+<details>
+  <summary>Expand subcommand reference</summary>
 
 #### Signaling Server
 
@@ -317,6 +322,8 @@ Flags:
 Global Flags:
   -v, --verbose int   Verbosity level (0 is disabled, default is info, 7 is trace) (default 5)
 ```
+
+</details>
 
 ### Environment Variables
 
