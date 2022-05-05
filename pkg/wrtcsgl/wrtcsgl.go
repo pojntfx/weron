@@ -196,7 +196,7 @@ func (s *Signaler) Open() error {
 				if !managementAPIEnabled {
 					rw.WriteHeader(http.StatusNotImplemented)
 
-					panic(http.StatusNotImplemented)
+					panic(fmt.Errorf("%v", http.StatusNotImplemented))
 				}
 
 				// List communities
@@ -204,7 +204,7 @@ func (s *Signaler) Open() error {
 				if err := authn.Validate(u, p); !ok || err != nil {
 					rw.WriteHeader(http.StatusUnauthorized)
 
-					panic(http.StatusUnauthorized)
+					panic(fmt.Errorf("%v", http.StatusUnauthorized))
 				}
 
 				pc, err := s.db.GetCommunities(s.ctx)
@@ -234,7 +234,7 @@ func (s *Signaler) Open() error {
 				if err == persisters.ErrWrongPassword || err == persisters.ErrEphermalCommunitiesDisabled {
 					rw.WriteHeader(http.StatusUnauthorized)
 
-					panic(http.StatusUnauthorized)
+					panic(fmt.Errorf("%v", http.StatusUnauthorized))
 				} else {
 					panic(err)
 				}
@@ -379,7 +379,7 @@ func (s *Signaler) Open() error {
 			if !managementAPIEnabled {
 				rw.WriteHeader(http.StatusNotImplemented)
 
-				panic(http.StatusNotImplemented)
+				panic(fmt.Errorf("%v", http.StatusNotImplemented))
 			}
 
 			// Create persistent community
@@ -387,7 +387,7 @@ func (s *Signaler) Open() error {
 			if err := authn.Validate(u, p); !ok || err != nil {
 				rw.WriteHeader(http.StatusUnauthorized)
 
-				panic(http.StatusUnauthorized)
+				panic(fmt.Errorf("%v", http.StatusUnauthorized))
 			}
 
 			password := r.URL.Query().Get("password")
@@ -425,7 +425,7 @@ func (s *Signaler) Open() error {
 			if !managementAPIEnabled {
 				rw.WriteHeader(http.StatusNotImplemented)
 
-				panic(http.StatusNotImplemented)
+				panic(fmt.Errorf("%v", http.StatusNotImplemented))
 			}
 
 			// Delete persistent community
@@ -433,7 +433,7 @@ func (s *Signaler) Open() error {
 			if err := authn.Validate(u, p); !ok || err != nil {
 				rw.WriteHeader(http.StatusUnauthorized)
 
-				panic(http.StatusUnauthorized)
+				panic(fmt.Errorf("%v", http.StatusUnauthorized))
 			}
 
 			community := r.URL.Query().Get("community")
@@ -445,7 +445,7 @@ func (s *Signaler) Open() error {
 				if err == sql.ErrNoRows {
 					rw.WriteHeader(http.StatusNotFound)
 
-					panic(http.StatusNotFound)
+					panic(fmt.Errorf("%v", http.StatusNotFound))
 				} else {
 					panic(err)
 				}
@@ -461,7 +461,7 @@ func (s *Signaler) Open() error {
 		default:
 			rw.WriteHeader(http.StatusNotImplemented)
 
-			panic(http.StatusNotImplemented)
+			panic(fmt.Errorf("%v", http.StatusNotImplemented))
 		}
 	})
 

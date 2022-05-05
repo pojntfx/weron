@@ -57,7 +57,7 @@ You can find binaries for more operating systems and architectures on [GitHub re
 
 ## Usage
 
-> TL;DR: Join a layer 3 (IP) overlay network with `sudo weron vpn ip --community mycommunity --password mypassword --key mykey --ips 2001:db8::1/32,192.0.2.1/24` and a layer 2 (Ethernet) overlay network with `sudo weron vpn ethernet --community mycommunity --password mypassword --key mykey`
+> TL;DR: Join a layer 3 (IP) overlay network on the hosted signaling server with `sudo weron vpn ip --community mycommunity --password mypassword --key mykey --ips 2001:db8::1/32,192.0.2.1/24` and a layer 2 (Ethernet) overlay network with `sudo weron vpn ethernet --community mycommunity --password mypassword --key mykey`
 
 ### 1. Start a Signaling Server with `weron signaler`
 
@@ -78,12 +78,58 @@ $ sudo podman run -d --name weron-redis --network weron redis
 Now, start the signaling server:
 
 ```shell
-$ sudo podman run -d --name weron-signaler --network weron -p 1337:1337 -e DATABASE_URL='postgres://postgres@weron-postgres:5432/weron_communities?sslmode=disable' -e REDIS_URL='redis://localhost:6379/1' -e API_PASSWORD='myapipassword' ghcr.io/pojntfx/weron:unstable weron signaler
+$ sudo podman run -d --name weron-signaler --network weron -p 1337:1337 -e DATABASE_URL='postgres://postgres@weron-postgres:5432/weron_communities?sslmode=disable' -e REDIS_URL='redis://weron-redis:6379/1' -e API_PASSWORD='myapipassword' ghcr.io/pojntfx/weron:unstable weron signaler
 ```
 
 It should now be reachable on `ws://localhost:1337/`.
 
-To use it in production, put this signaling server behind a TLS-enabled reverse proxy such as [Caddy](https://caddyserver.com/) or [Traefik](https://traefik.io/). You may also either want to keep `API_PASSWORD` empty to disable the management API completely or use OpenID Connect to authenticate instead; see the [signaling server reference](#signaling-server).
+To use it in production, put this signaling server behind a TLS-enabled reverse proxy such as [Caddy](https://caddyserver.com/) or [Traefik](https://traefik.io/). You may also either want to keep `API_PASSWORD` empty to disable the management API completely or use OpenID Connect to authenticate instead; for more information, see the [signaling server reference](#signaling-server). You can also embed the signaling server in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@v0.0.0-20220505182851-8eabe8595f05/pkg/wrtcsgl).
+
+### Manage Communities with `weron manager`
+
+While it is possible to create ephermal communities on a signaling server without any kind of authorization, you probably want to create a persistent community for most applications. Ephermal communities get created and deleted automatically as clients join or leave, persistent communities will never get deleted automatically. You can manage these communities using the manager CLI.
+
+If you want to work on your self-hosted signaling server, first set the remote address:
+
+```shell
+$ export WERON_RADDR='http://localhost:1337/'
+```
+
+Next, set the API password using the `API_PASSWORD` env variable:
+
+```shell
+$ export API_PASSWORD='myapipassword'
+```
+
+If you use OIDC to authenticate, you can instead set the API password using [goit](https://github.com/pojntfx/goit) like so:
+
+```shell
+$ export OIDC_CLIENT_ID='Ab7OLrQibhXUzKHGWYDFieLa2KqZmFzb' OIDC_ISSUER='https://pojntfx.eu.auth0.com/' OIDC_REDIRECT_URL='http://localhost:11337'
+$ export API_KEY="$(goit)"
+```
+
+If we now list the communities, we see that none currently exist:
+
+```shell
+$ weron manager list
+id,clients,persistent
+```
+
+We can create a persistent community using `weron create`:
+
+```shell
+$ weron manager create --community mycommunity --password mypassword
+id,clients,persistent
+mycommunity,0,true
+```
+
+It is also possible to delete communities using `weron delete`, which will also disconnect all joined peers:
+
+```shell
+$ weron manager delete --community mycommunity
+```
+
+For more information, see the [manager reference](#manager). You can also embed the manager in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@v0.0.0-20220505182851-8eabe8595f05/pkg/wrtcmgr).
 
 ## Reference
 
