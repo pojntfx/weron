@@ -18,10 +18,11 @@ weron provides lean, fast & secure overlay networks based on WebRTC.
 
 It enables you too ...
 
-- **Access to nodes behind NAT**: Because weron uses WebRTC to establish connections between nodes, it can easily traverse corporate firewalls and NATs using STUN, or even use a TURN server to tunnel traffic. This can be very useful to i.e. SSH into your homelab without forwarding any ports on your router.
-- **Secure your home network**: By using the inbuilt interactive TLS verification and running the signaling server locally, weron can be used to secure traffic between nodes in a LAN without depending on any external infrastructure.
-- **Join local nodes into a cloud network**: If you run e.g. a Kubernetes cluster with nodes based on cloud instances but also want to join your on-prem nodes into it, you can use weron to create a trusted network for it.
-- **Write your own peer-to-peer protocols**: The simple API makes writing distributed applications with automatic reconnects, multiple datachannels etc. approachable and fun!
+- **Access nodes behind NAT**: Because weron uses WebRTC to establish connections between nodes, it can easily traverse corporate firewalls and NATs using STUN, or even use a TURN server to tunnel traffic. This can be very useful to for example SSH into your homelab without forwarding any ports on your router.
+- **Secure your home network**: Due to the relatively low overhead of WebRTC in low-latency networks, weron can be used to secure traffic between nodes in a LAN without a significant performance hit.
+- **Join local nodes into a cloud network**: If you run for example a Kubernetes cluster with nodes based on cloud instances but also want to join your on-prem nodes into it, you can use weron to create a trusted network.
+- **Bypass censorship**: The underlying WebRTC suite, which is what popular videoconferencing tools such as Zoom, Teams and Meet are built on, is hard to block on a network level, making it a valuable addition to your toolbox for bypassing state or corporate censorship.
+- **Write your own peer-to-peer protocols**: The simple API makes writing distributed applications with automatic reconnects, multiple datachannels etc. easy.
 
 ## Installation
 
@@ -72,23 +73,73 @@ While it is possible and resonably private (in addition to TLS, connection infor
 
 The signaling server can use an in-process broker with an in-memory database or Redis and PostgreSQL; for production use the latter configuration is strongly recommended, as it allows you to easily scale the signaling server horizontally. This is particularly important if you want to scale your server infrastructure across multiple continents, as intra-cloud backbones usually have lower latency than residental connections, which reduces the amount of time required to connect peers with each other.
 
-First, start Redis and Postgres:
+<details>
+  <summary>Expand containerized instructions</summary>
 
 ```shell
 $ sudo podman network create weron
-$ sudo podman run -d --name weron-postgres --network weron -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=weron_communities postgres
-$ sudo podman run -d --name weron-redis --network weron redis
+
+$ sudo podman run -d --restart=always --label "io.containers.autoupdate=image" --name weron-postgres --network weron -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=weron_communities postgres
+$ sudo podman generate systemd --new weron-postgres | sudo tee /lib/systemd/system/weron-postgres.service
+
+$ sudo podman run -d --restart=always --label "io.containers.autoupdate=image" --name weron-redis --network weron redis
+$ sudo podman generate systemd --new weron-redis | sudo tee /lib/systemd/system/weron-redis.service
+
+$ sudo podman run -d --restart=always --label "io.containers.autoupdate=image" --name weron-signaler --network weron -p 1337:1337 -e DATABASE_URL='postgres://postgres@weron-postgres:5432/weron_communities?sslmode=disable' -e REDIS_URL='redis://weron-redis:6379/1' -e API_PASSWORD='myapipassword' ghcr.io/pojntfx/weron:unstable weron signaler
+$ sudo podman generate systemd --new weron-signaler | sudo tee /lib/systemd/system/weron-signaler.service
+
+$ sudo systemctl daemon-reload
+
+$ sudo systemctl enable --now weron-postgres
+$ sudo systemctl enable --now weron-redis
+$ sudo systemctl enable --now weron-signaler
+
+$ sudo firewall-cmd --permanent --add-port=1337/tcp
+$ sudo firewall-cmd --reload
 ```
 
-Now, start the signaling server:
+</details>
+
+<details>
+  <summary>Expand native instructions</summary>
 
 ```shell
-$ sudo podman run -d --name weron-signaler --network weron -p 1337:1337 -e DATABASE_URL='postgres://postgres@weron-postgres:5432/weron_communities?sslmode=disable' -e REDIS_URL='redis://weron-redis:6379/1' -e API_PASSWORD='myapipassword' ghcr.io/pojntfx/weron:unstable weron signaler
+sudo podman run -d --restart=always --label "io.containers.autoupdate=image" --name weron-postgres -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=weron_communities -p 127.0.0.1:5432:5432 postgres
+sudo podman generate systemd --new weron-postgres | sudo tee /lib/systemd/system/weron-postgres.service
+
+sudo podman run -d --restart=always --label "io.containers.autoupdate=image" --name weron-redis -p 127.0.0.1:6379:6379 redis
+sudo podman generate systemd --new weron-redis | sudo tee /lib/systemd/system/weron-redis.service
+
+sudo tee /etc/systemd/system/weron-signaler.service<<'EOT'
+[Unit]
+Description=weron Signaling Server
+After=weron-postgres.service weron-redis.service
+
+[Service]
+ExecStart=/usr/local/bin/weron signaler --verbose=7
+Environment="DATABASE_URL=postgres://postgres@localhost:5432/weron_communities?sslmode=disable"
+Environment="REDIS_URL=redis://localhost:6379/1"
+Environment="API_PASSWORD=myapipassword"
+
+[Install]
+WantedBy=multi-user.target
+EOT
+
+sudo systemctl daemon-reload
+
+sudo systemctl restart weron-postgres
+sudo systemctl restart weron-redis
+sudo systemctl restart weron-signaler
+
+sudo firewall-cmd --permanent --add-port=1337/tcp
+sudo firewall-cmd --reload
 ```
+
+</details>
 
 It should now be reachable on `ws://localhost:1337/`.
 
-To use it in production, put this signaling server behind a TLS-enabled reverse proxy such as [Caddy](https://caddyserver.com/) or [Traefik](https://traefik.io/). You may also either want to keep `API_PASSWORD` empty to disable the management API completely or use OpenID Connect to authenticate instead; for more information, see the [signaling server reference](#signaling-server). You can also embed the signaling server in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcsgl).
+To use it in production, put this signaling server behind a TLS-enabled reverse proxy such as [Caddy](https://caddyserver.com/) or [Traefik](https://traefik.io/). You may also either want to keep `API_PASSWORD` empty to disable the management API completely or use OpenID Connect to authenticate instead; for more information, see the [signaling server reference](#signaling-server). You can also embed the signaling server in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcsgl).
 
 ### 2. Manage Communities with `weron manager`
 
@@ -134,9 +185,15 @@ It is also possible to delete communities using `weron delete`, which will also 
 $ weron manager delete --community mycommunity
 ```
 
-For more information, see the [manager reference](#manager). You can also embed the manager in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcmgr).
+For more information, see the [manager reference](#manager). You can also embed the manager in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcmgr).
 
 ### 3. Test the System with `weron chat`
+
+If you want to work on your self-hosted signaling server, first set the remote address:
+
+```shell
+$ export WERON_RADDR='ws://localhost:1337/'
+```
 
 The chat is an easy way to test if everything is working correctly. To join a chatroom, run the following:
 
@@ -158,7 +215,7 @@ user2>
 
 You can now start sending and receiving messages or add new peers to your chatroom to test the network.
 
-For more information, see the [chat reference](#chat). You can also embed the chat in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcchat).
+For more information, see the [chat reference](#chat). You can also embed the chat in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcchat).
 
 ### 4. Measure Latency with `weron utility latency`
 
@@ -181,7 +238,7 @@ $ weron utility latency --community mycommunity --password mypassword --key myke
 ^CAverage latency: 281.235µs (5 packets written) Min: 110.111µs Max: 386.12µs
 ```
 
-For more information, see the [latency measurement utility reference](#latency-measurement-utility). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcltc).
+For more information, see the [latency measurement utility reference](#latency-measurement-utility). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcltc).
 
 ### 5. Measure Throughput with `weron utility throughput`
 
@@ -204,7 +261,7 @@ $ weron utility throughput --community mycommunity --password mypassword --key m
 ^CAverage throughput: 74.295 MB/s (594.359 Mb/s) (250 MB written in 3.364971672s) Min: 64.844 MB/s Max: 103.360 MB/s
 ```
 
-For more information, see the [throughput measurement utility reference](#throughput-measurement-utility). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcthr).
+For more information, see the [throughput measurement utility reference](#throughput-measurement-utility). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcthr).
 
 ### 6. Create a Layer 3 (IP) Overlay Network with `weron vpn ip`
 
@@ -240,7 +297,7 @@ PING 2001:db8::b9(2001:db8::b9) 56 data bytes
 rtt min/avg/max/mdev = 1.066/1.180/1.361/0.114 ms
 ```
 
-If you temporarly loose the network connection, the network topology changes etc. it will automatically reconnect. For more information and limitations on proprietary operating systems like macOS, see the [IP VPN reference](#layer-3-ip-overlay-networks). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcip).
+If you temporarly loose the network connection, the network topology changes etc. it will automatically reconnect. For more information and limitations on proprietary operating systems like macOS, see the [IP VPN reference](#layer-3-ip-overlay-networks). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcip).
 
 ### 7. Create a Layer 2 (Ethernet) Overlay Network with `weron vpn ethernet`
 
@@ -289,7 +346,7 @@ PING 2001:db8::2(2001:db8::2) 56 data bytes
 rtt min/avg/max/mdev = 1.136/1.193/1.239/0.042 ms
 ```
 
-If you temporarly loose the network connection, the network topology changes etc. it will automatically reconnect. You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtceth).
+If you temporarly loose the network connection, the network topology changes etc. it will automatically reconnect. You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtceth).
 
 ### 8. Write your own protocol with `wrtcconn`
 
@@ -328,7 +385,7 @@ for {
 }
 ```
 
-You can either use the [minimal adapter](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcconn#Adapter) or the [named adapter](https://pkg.go.dev/github.com/pojntfx/weron@main/pkg/wrtcconn#NamedAdapter); the latter negotiates a username between the peers, while the former does not check for duplicates. For more information, check out the [Go API](https://pkg.go.dev/github.com/pojntfx/weron@main) and take a look at the other utilities and services in the package for examples.
+You can either use the [minimal adapter](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcconn#Adapter) or the [named adapter](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcconn#NamedAdapter); the latter negotiates a username between the peers, while the former does not check for duplicates. For more information, check out the [Go API](https://pkg.go.dev/github.com/pojntfx/weron) and take a look at the other utilities and services in the package for examples.
 
 🚀 **That's it!** We hope you enjoy using weron.
 
