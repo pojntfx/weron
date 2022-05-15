@@ -8,6 +8,7 @@ Overlay networks based on WebRTC.
 
 [![hydrun CI](https://github.com/pojntfx/weron/actions/workflows/hydrun.yaml/badge.svg)](https://github.com/pojntfx/weron/actions/workflows/hydrun.yaml)
 [![Docker CI](https://github.com/pojntfx/weron/actions/workflows/docker.yaml/badge.svg)](https://github.com/pojntfx/weron/actions/workflows/docker.yaml)
+![Go Version](https://img.shields.io/badge/go%20version-%3E=1.18-61CFDD.svg)
 [![Go Reference](https://pkg.go.dev/badge/github.com/pojntfx/weron.svg)](https://pkg.go.dev/github.com/pojntfx/weron)
 [![Matrix](https://img.shields.io/matrix/weron:matrix.org)](https://matrix.to/#/#weron:matrix.org?via=matrix.org)
 [![Binary Downloads](https://img.shields.io/github/downloads/pojntfx/weron/total?label=binary%20downloads)](https://github.com/pojntfx/weron/releases)
