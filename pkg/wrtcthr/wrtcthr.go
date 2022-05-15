@@ -172,6 +172,13 @@ func (a *Adapter) Wait() error {
 					for {
 						read := 0
 						for i := 0; i < a.config.PacketCount; i++ {
+							if i == 0 {
+								log.Debug().
+									Str("channelID", peer.ChannelID).
+									Str("peerID", peer.PeerID).
+									Msg("Started receiving data")
+							}
+
 							buf := make([]byte, a.config.PacketLength)
 
 							n, err := peer.Conn.Read(buf)
@@ -187,6 +194,11 @@ func (a *Adapter) Wait() error {
 
 							read += n
 						}
+
+						log.Debug().
+							Str("channelID", peer.ChannelID).
+							Str("peerID", peer.PeerID).
+							Msg("Acknowledging received data")
 
 						if _, err := peer.Conn.Write(make([]byte, acklen)); err != nil {
 							log.Debug().
