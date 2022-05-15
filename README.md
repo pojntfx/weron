@@ -386,7 +386,7 @@ for {
 }
 ```
 
-You can either use the [minimal adapter](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcconn#Adapter) or the [named adapter](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcconn#NamedAdapter); the latter negotiates a username between the peers, while the former does not check for duplicates. For more information, check out the [Go API](https://pkg.go.dev/github.com/pojntfx/weron) and take a look at the other utilities and services in the package for examples.
+You can either use the [minimal adapter](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcconn#Adapter) or the [named adapter](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcconn#NamedAdapter); the latter negotiates a username between the peers, while the former does not check for duplicates. For more information, check out the [Go API](https://pkg.go.dev/github.com/pojntfx/weron) and take a look at the provided [examples](./examples), utilities and services in the package for examples.
 
 🚀 **That's it!** We hope you enjoy using weron.
 
