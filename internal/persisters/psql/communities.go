@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	_ "github.com/lib/pq"
+	"github.com/pojntfx/go-auth-utils/pkg/authn"
 	"github.com/pojntfx/weron/internal/db/psql/migrations/communities"
 	models "github.com/pojntfx/weron/internal/db/psql/models/communities"
 	"github.com/pojntfx/weron/internal/persisters"
@@ -112,7 +113,7 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 			return err
 		}
 
-		return persisters.ErrWrongPassword
+		return authn.ErrWrongPassword
 	}
 
 	c.Clients += 1
