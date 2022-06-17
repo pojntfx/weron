@@ -4,7 +4,6 @@ module github.com/pojntfx/weron
 go 1.18
 
 require (
-	github.com/coreos/go-oidc/v3 v3.1.0
 	github.com/friendsofgo/errors v0.9.2
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/gopacket v1.1.19
@@ -14,6 +13,7 @@ require (
 	github.com/lib/pq v1.10.5
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pion/webrtc/v3 v3.1.34
+	github.com/pojntfx/go-auth-utils v0.1.0
 	github.com/rs/zerolog v1.26.1
 	github.com/rubenv/sql-migrate v1.1.1
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
@@ -31,6 +31,7 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/coreos/go-oidc/v3 v3.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-gorp/gorp/v3 v3.0.2 // indirect

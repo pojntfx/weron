@@ -17,9 +17,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/pojntfx/weron/internal/authn"
-	"github.com/pojntfx/weron/internal/authn/basic"
-	"github.com/pojntfx/weron/internal/authn/oidc"
+	"github.com/pojntfx/go-auth-utils/pkg/authn"
+	"github.com/pojntfx/go-auth-utils/pkg/authn/basic"
+	"github.com/pojntfx/go-auth-utils/pkg/authn/oidc"
 	"github.com/pojntfx/weron/internal/brokers"
 	"github.com/pojntfx/weron/internal/brokers/process"
 	"github.com/pojntfx/weron/internal/brokers/redis"
@@ -138,14 +138,14 @@ func (s *Signaler) Open() error {
 		return err
 	}
 
-	var authn authn.Authn
+	var auth authn.Authn
 	if strings.TrimSpace(s.config.OIDCIssuer) == "" && strings.TrimSpace(s.config.OIDCClientID) == "" {
-		authn = basic.NewAuthn(s.config.APIUsername, s.config.APIPassword)
+		auth = basic.NewAuthn(s.config.APIUsername, s.config.APIPassword)
 	} else {
-		authn = oidc.NewAuthn(s.config.OIDCIssuer, s.config.OIDCClientID)
+		auth = oidc.NewAuthn(s.config.OIDCIssuer, s.config.OIDCClientID)
 	}
 
-	if err := authn.Open(s.ctx); err != nil {
+	if err := auth.Open(s.ctx); err != nil {
 		return err
 	}
 
@@ -201,7 +201,7 @@ func (s *Signaler) Open() error {
 
 				// List communities
 				u, p, ok := r.BasicAuth()
-				if err := authn.Validate(u, p); !ok || err != nil {
+				if err := auth.Validate(u, p); !ok || err != nil {
 					rw.WriteHeader(http.StatusUnauthorized)
 
 					panic(fmt.Errorf("%v", http.StatusUnauthorized))
@@ -231,7 +231,7 @@ func (s *Signaler) Open() error {
 			}
 
 			if err := s.db.AddClientsToCommunity(s.ctx, community, password, s.config.EphermalCommunities); err != nil {
-				if err == persisters.ErrWrongPassword || err == persisters.ErrEphermalCommunitiesDisabled {
+				if err == authn.ErrWrongPassword || err == persisters.ErrEphermalCommunitiesDisabled {
 					rw.WriteHeader(http.StatusUnauthorized)
 
 					panic(fmt.Errorf("%v", http.StatusUnauthorized))
@@ -384,7 +384,7 @@ func (s *Signaler) Open() error {
 
 			// Create persistent community
 			u, p, ok := r.BasicAuth()
-			if err := authn.Validate(u, p); !ok || err != nil {
+			if err := auth.Validate(u, p); !ok || err != nil {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(fmt.Errorf("%v", http.StatusUnauthorized))
@@ -430,7 +430,7 @@ func (s *Signaler) Open() error {
 
 			// Delete persistent community
 			u, p, ok := r.BasicAuth()
-			if err := authn.Validate(u, p); !ok || err != nil {
+			if err := auth.Validate(u, p); !ok || err != nil {
 				rw.WriteHeader(http.StatusUnauthorized)
 
 				panic(fmt.Errorf("%v", http.StatusUnauthorized))

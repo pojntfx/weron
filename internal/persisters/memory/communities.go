@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/pojntfx/go-auth-utils/pkg/authn"
 	"github.com/pojntfx/weron/internal/persisters"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -71,7 +72,7 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 	}
 
 	if bcrypt.CompareHashAndPassword([]byte(c.password), []byte(password)) != nil {
-		return persisters.ErrWrongPassword
+		return authn.ErrWrongPassword
 	}
 
 	c.Clients += 1
