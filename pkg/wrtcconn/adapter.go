@@ -54,9 +54,10 @@ type Adapter struct {
 	config   *AdapterConfig
 	ctx      context.Context
 
-	cancel context.CancelFunc
-	done   bool
-	lines  chan []byte
+	cancel   context.CancelFunc
+	done     bool
+	doneSync sync.Mutex
+	lines    chan []byte
 
 	peers chan *Peer
 
@@ -94,6 +95,17 @@ func NewAdapter(
 		peers:  make(chan *Peer),
 		lines:  make(chan []byte),
 	}
+}
+
+func (a *Adapter) sendLine(line []byte) {
+	a.doneSync.Lock()
+	defer a.doneSync.Unlock()
+
+	if a.done {
+		return
+	}
+
+	a.lines <- line
 }
 
 // Open connects the adapter to the signaler
@@ -253,7 +265,7 @@ func (a *Adapter) Open() (chan string, error) {
 						return
 					}
 
-					a.lines <- p
+					a.sendLine(p)
 
 					log.Debug().Str("address", u.String()).Str("id", id).Msg("Introduced to signaler")
 				}()
@@ -376,7 +388,7 @@ func (a *Adapter) Open() (chan string, error) {
 									}
 
 									go func() {
-										a.lines <- p
+										a.sendLine(p)
 
 										log.Debug().
 											Str("address", conn.RemoteAddr().String()).
@@ -506,7 +518,7 @@ func (a *Adapter) Open() (chan string, error) {
 									peerLock.Unlock()
 
 									go func() {
-										a.lines <- p
+										a.sendLine(p)
 
 										log.Debug().
 											Str("address", conn.RemoteAddr().String()).
@@ -606,7 +618,7 @@ func (a *Adapter) Open() (chan string, error) {
 									}
 
 									go func() {
-										a.lines <- p
+										a.sendLine(p)
 
 										log.Debug().
 											Str("address", conn.RemoteAddr().String()).
@@ -726,7 +738,7 @@ func (a *Adapter) Open() (chan string, error) {
 							}()
 
 							go func() {
-								a.lines <- p
+								a.sendLine(p)
 
 								log.Debug().
 									Str("address", conn.RemoteAddr().String()).
