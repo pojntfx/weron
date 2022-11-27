@@ -12,7 +12,7 @@ import (
 var managerDeleteCmd = &cobra.Command{
 	Use:     "delete",
 	Aliases: []string{"del", "d", "rm"},
-	Short:   "Delete a persistent or ephermal community",
+	Short:   "Delete a persistent or ephemeral community",
 	PreRunE: validateRemoteFlags,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {

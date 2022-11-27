@@ -23,7 +23,7 @@ var (
 
 func main() {
 	verboseFlag := flag.Int("verbose", 5, "Verbosity level (0 is disabled, default is info, 7 is trace)")
-	raddrFlag := flag.String("raddr", "wss://weron.herokuapp.com/", "Remote address")
+	raddrFlag := flag.String("raddr", "wss://weron.up.railway.app/", "Remote address")
 	timeoutFlag := flag.Duration("timeout", time.Second*10, "Time to wait for connections")
 	communityFlag := flag.String("community", "", "ID of community to join")
 	passwordFlag := flag.String("password", "", "Password for community")

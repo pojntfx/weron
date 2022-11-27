@@ -138,7 +138,7 @@ var utilityLatencyCommand = &cobra.Command{
 }
 
 func init() {
-	utilityLatencyCommand.PersistentFlags().String(raddrFlag, "wss://weron.herokuapp.com/", "Remote address")
+	utilityLatencyCommand.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
 	utilityLatencyCommand.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	utilityLatencyCommand.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	utilityLatencyCommand.PersistentFlags().String(passwordFlag, "", "Password for community")

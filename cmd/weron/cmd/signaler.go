@@ -15,16 +15,16 @@ import (
 )
 
 const (
-	laddrFlag               = "laddr"
-	heartbeatFlag           = "heartbeat"
-	postgresURLFlag         = "postgres-url"
-	redisURLFlag            = "redis-url"
-	cleanupFlag             = "cleanup"
-	ephermalCommunitiesFlag = "ephermal-communities"
-	apiUsernameFlag         = "api-username"
-	apiPasswordFlag         = "api-password"
-	oidcIssuerFlag          = "oidc-issuer"
-	oidcClientIDFlag        = "oidc-client-id"
+	laddrFlag                = "laddr"
+	heartbeatFlag            = "heartbeat"
+	postgresURLFlag          = "postgres-url"
+	redisURLFlag             = "redis-url"
+	cleanupFlag              = "cleanup"
+	ephemeralCommunitiesFlag = "ephemeral-communities"
+	apiUsernameFlag          = "api-username"
+	apiPasswordFlag          = "api-password"
+	oidcIssuerFlag           = "oidc-issuer"
+	oidcClientIDFlag         = "oidc-client-id"
 )
 
 var signalerCmd = &cobra.Command{
@@ -99,13 +99,13 @@ var signalerCmd = &cobra.Command{
 			viper.GetString(postgresURLFlag),
 			viper.GetString(redisURLFlag),
 			&wrtcsgl.SignalerConfig{
-				Heartbeat:           viper.GetDuration(heartbeatFlag),
-				Cleanup:             viper.GetBool(cleanupFlag),
-				EphermalCommunities: viper.GetBool(ephermalCommunitiesFlag),
-				APIUsername:         viper.GetString(apiUsernameFlag),
-				APIPassword:         viper.GetString(apiPasswordFlag),
-				OIDCIssuer:          viper.GetString(oidcIssuerFlag),
-				OIDCClientID:        viper.GetString(oidcClientIDFlag),
+				Heartbeat:            viper.GetDuration(heartbeatFlag),
+				Cleanup:              viper.GetBool(cleanupFlag),
+				EphemeralCommunities: viper.GetBool(ephemeralCommunitiesFlag),
+				APIUsername:          viper.GetString(apiUsernameFlag),
+				APIPassword:          viper.GetString(apiPasswordFlag),
+				OIDCIssuer:           viper.GetString(oidcIssuerFlag),
+				OIDCClientID:         viper.GetString(oidcClientIDFlag),
 				OnConnect: func(raddr, community string) {
 					log.Info().
 						Str("address", raddr).
@@ -140,8 +140,8 @@ func init() {
 	signalerCmd.PersistentFlags().Duration(heartbeatFlag, time.Second*10, "Time to wait for heartbeats")
 	signalerCmd.PersistentFlags().String(postgresURLFlag, "", "URL of PostgreSQL database to use (i.e. postgres://myuser:mypassword@myhost:myport/mydatabase) (can also be set using the DATABASE_URL env variable). If empty, a in-memory database will be used.")
 	signalerCmd.PersistentFlags().String(redisURLFlag, "", "URL of Redis database to use (i.e. redis://myuser:mypassword@myhost:myport/1) (can also be set using the REDIS_URL env variable). If empty, a in-process broker will be used.")
-	signalerCmd.PersistentFlags().Bool(cleanupFlag, false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting")
-	signalerCmd.PersistentFlags().Bool(ephermalCommunitiesFlag, true, "Enable the creation of ephermal communities")
+	signalerCmd.PersistentFlags().Bool(cleanupFlag, false, "(Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephemeral communities from database and reset client counts before starting")
+	signalerCmd.PersistentFlags().Bool(ephemeralCommunitiesFlag, true, "Enable the creation of ephemeral communities")
 	signalerCmd.PersistentFlags().String(apiUsernameFlag, "admin", "Username for the management API (can also be set using the API_USERNAME env variable). Ignored if any of the OIDC parameters are set.")
 	signalerCmd.PersistentFlags().String(apiPasswordFlag, "", "Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.")
 	signalerCmd.PersistentFlags().String(oidcIssuerFlag, "", "OIDC Issuer (i.e. https://pojntfx.eu.auth0.com/) (can also be set using the OIDC_ISSUER env variable)")

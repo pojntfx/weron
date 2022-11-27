@@ -124,7 +124,7 @@ var vpnIPCmd = &cobra.Command{
 }
 
 func init() {
-	vpnIPCmd.PersistentFlags().String(raddrFlag, "wss://weron.herokuapp.com/", "Remote address")
+	vpnIPCmd.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
 	vpnIPCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	vpnIPCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	vpnIPCmd.PersistentFlags().String(passwordFlag, "", "Password for community")

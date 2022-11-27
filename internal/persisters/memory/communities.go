@@ -129,7 +129,7 @@ func (p *CommunitiesPersister) Cleanup(
 
 	newCommunities := []*Community{}
 	for _, candidate := range p.communities {
-		// Delete all ephermal communities
+		// Delete all ephemeral communities
 		if candidate.Persistent {
 			continue
 		}
