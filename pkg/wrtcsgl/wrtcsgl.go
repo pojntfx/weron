@@ -44,13 +44,13 @@ type connection struct {
 
 // SignalerConfig configures the adapter
 type SignalerConfig struct {
-	Heartbeat           time.Duration // Duration between heartbeats
-	Cleanup             bool          // Whether to cleanup leftover ephermal communities before starting
-	EphermalCommunities bool          // Whether to enable ephermal communities
-	APIUsername         string        // Username for the API endpoint
-	APIPassword         string        // Password for the API endpoint; ignored if any of the OIDC parameters are set
-	OIDCIssuer          string        // OpenID Connect issuer
-	OIDCClientID        string        // OpenID Connect client id
+	Heartbeat            time.Duration // Duration between heartbeats
+	Cleanup              bool          // Whether to cleanup leftover ephemeral communities before starting
+	EphemeralCommunities bool          // Whether to enable ephemeral communities
+	APIUsername          string        // Username for the API endpoint
+	APIPassword          string        // Password for the API endpoint; ignored if any of the OIDC parameters are set
+	OIDCIssuer           string        // OpenID Connect issuer
+	OIDCClientID         string        // OpenID Connect client id
 
 	OnConnect    func(raddr string, community string)                  // Handler to be called when a client has connected to the signaler
 	OnDisconnect func(raddr string, community string, err interface{}) // Handler to be called when a client has disconnected from the signaler
@@ -224,14 +224,14 @@ func (s *Signaler) Open() error {
 				return
 			}
 
-			// Create ephermal community
+			// Create ephemeral community
 			password := r.URL.Query().Get("password")
 			if strings.TrimSpace(password) == "" {
 				panic(errMissingPassword)
 			}
 
-			if err := s.db.AddClientsToCommunity(s.ctx, community, password, s.config.EphermalCommunities); err != nil {
-				if err == authn.ErrWrongPassword || err == persisters.ErrEphermalCommunitiesDisabled {
+			if err := s.db.AddClientsToCommunity(s.ctx, community, password, s.config.EphemeralCommunities); err != nil {
+				if err == authn.ErrWrongPassword || err == persisters.ErrEphemeralCommunitiesDisabled {
 					rw.WriteHeader(http.StatusUnauthorized)
 
 					panic(fmt.Errorf("%v", http.StatusUnauthorized))

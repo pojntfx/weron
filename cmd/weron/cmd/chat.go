@@ -164,7 +164,7 @@ var chatCmd = &cobra.Command{
 }
 
 func init() {
-	chatCmd.PersistentFlags().String(raddrFlag, "wss://weron.herokuapp.com/", "Remote address")
+	chatCmd.PersistentFlags().String(raddrFlag, "wss://weron.up.railway.app/", "Remote address")
 	chatCmd.PersistentFlags().Duration(timeoutFlag, time.Second*10, "Time to wait for connections")
 	chatCmd.PersistentFlags().String(communityFlag, "", "ID of community to join")
 	chatCmd.PersistentFlags().String(passwordFlag, "", "Password for community")

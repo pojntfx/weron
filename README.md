@@ -70,9 +70,9 @@ You can find binaries for more operating systems and architectures on [GitHub re
 
 The signaling server connects peers with each other by exchanging connection information between them. It also manages access to communities through the `--password` flag of clients and can maintain persistent communities even after all peers have disconnected.
 
-While it is possible and resonably private (in addition to TLS, connection information is encrypted using the `--key` flag of clients) to use the hosted signaling server at `wss://weron.herokuapp.com/`, hosting it yourself has many benefits, such as lower latency and even better privacy.
+While it is possible and reasonably private (in addition to TLS, connection information is encrypted using the `--key` flag of clients) to use the hosted signaling server at `wss://weron.up.railway.app/`, hosting it yourself has many benefits, such as lower latency and even better privacy.
 
-The signaling server can use an in-process broker with an in-memory database or Redis and PostgreSQL; for production use the latter configuration is strongly recommended, as it allows you to easily scale the signaling server horizontally. This is particularly important if you want to scale your server infrastructure across multiple continents, as intra-cloud backbones usually have lower latency than residental connections, which reduces the amount of time required to connect peers with each other.
+The signaling server can use an in-process broker with an in-memory database or Redis and PostgreSQL; for production use the latter configuration is strongly recommended, as it allows you to easily scale the signaling server horizontally. This is particularly important if you want to scale your server infrastructure across multiple continents, as intra-cloud backbones usually have lower latency than residential connections, which reduces the amount of time required to connect peers with each other.
 
 <details>
   <summary>Expand containerized instructions</summary>
@@ -144,7 +144,7 @@ To use it in production, put this signaling server behind a TLS-enabled reverse 
 
 ### 2. Manage Communities with `weron manager`
 
-While it is possible to create ephermal communities on a signaling server without any kind of authorization, you probably want to create a persistent community for most applications. Ephermal communities get created and deleted automatically as clients join or leave, persistent communities will never get deleted automatically. You can manage these communities using the manager CLI.
+While it is possible to create ephemeral communities on a signaling server without any kind of authorization, you probably want to create a persistent community for most applications. Ephemeral communities get created and deleted automatically as clients join or leave, persistent communities will never get deleted automatically. You can manage these communities using the manager CLI.
 
 If you want to work on your self-hosted signaling server, first set the remote address:
 
@@ -186,7 +186,7 @@ It is also possible to delete communities using `weron delete`, which will also 
 $ weron manager delete --community mycommunity
 ```
 
-For more information, see the [manager reference](#manager). You can also embed the manager in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcmgr).
+For more information, see the [manager reference](#manager). You can also embed the manager in your own application using its [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcmgr).
 
 ### 3. Test the System with `weron chat`
 
@@ -206,7 +206,7 @@ On another peer, run the following (if your signaling server is public, you can 
 
 ```shell
 $ weron chat --community mycommunity --password mypassword --key mykey --names user1,user2,user3 --channels one,two,three
-.wss://weron.herokuapp.com/
+.wss://weron.up.railway.app/
 user2!
 +user1@one
 +user1@two
@@ -216,11 +216,11 @@ user2>
 
 You can now start sending and receiving messages or add new peers to your chatroom to test the network.
 
-For more information, see the [chat reference](#chat). You can also embed the chat in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcchat).
+For more information, see the [chat reference](#chat). You can also embed the chat in your own application using its [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcchat).
 
 ### 4. Measure Latency with `weron utility latency`
 
-An insightful metric of your network is it's latency, which you can measure with this utility; think of this as `ping`, but for WebRTC. First, start the latency measurement server like so:
+An insightful metric of your network is its latency, which you can measure with this utility; think of this as `ping`, but for WebRTC. First, start the latency measurement server like so:
 
 ```shell
 $ weron utility latency --community mycommunity --password mypassword --key mykey --server
@@ -239,7 +239,7 @@ $ weron utility latency --community mycommunity --password mypassword --key myke
 ^CAverage latency: 281.235µs (5 packets written) Min: 110.111µs Max: 386.12µs
 ```
 
-For more information, see the [latency measurement utility reference](#latency-measurement-utility). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcltc).
+For more information, see the [latency measurement utility reference](#latency-measurement-utility). You can also embed the utility in your own application using its [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcltc).
 
 ### 5. Measure Throughput with `weron utility throughput`
 
@@ -266,11 +266,11 @@ For more information, see the [throughput measurement utility reference](#throug
 
 ### 6. Create a Layer 3 (IP) Overlay Network with `weron vpn ip`
 
-If you want to join multiple nodes into a overlay network, the IP VPN is the best choice. It works in a similar way to i.e. Tailscale/WireGuard and can either dynamically allocate an IP address from a CIDR notation or statically assign one for you. On Windows, make sure to install [TAP-Windows](https://duckduckgo.com/?q=TAP-Windows&t=h_&ia=web) first. To get started, launch the VPN on the first peer:
+If you want to join multiple nodes into an overlay network, the IP VPN is the best choice. It works similarly to i.e. Tailscale/WireGuard and can either dynamically allocate an IP address from a CIDR notation or statically assign one for you. On Windows, make sure to install [TAP-Windows](https://duckduckgo.com/?q=TAP-Windows&t=h_&ia=web) first. To get started, launch the VPN on the first peer:
 
 ```shell
 $ sudo weron vpn ip --community mycommunity --password mypassword --key mykey --ips 2001:db8::1/64,192.0.2.1/24
-{"level":"info","addr":"wss://weron.herokuapp.com/","time":"2022-05-06T22:20:51+02:00","message":"Connecting to signaler"}
+{"level":"info","addr":"wss://weron.up.railway.app/","time":"2022-05-06T22:20:51+02:00","message":"Connecting to signaler"}
 {"level":"info","id":"[\"2001:db8::6a/64\",\"192.0.2.107/24\"]","time":"2022-05-06T22:20:56+02:00","message":"Connected to signaler"}
 ```
 
@@ -278,7 +278,7 @@ On another peer, launch the VPN as well:
 
 ```shell
 $ sudo weron vpn ip --community mycommunity --password mypassword --key mykey --ips 2001:db8::1/64,192.0.2.1/24
-{"level":"info","addr":"wss://weron.herokuapp.com/","time":"2022-05-06T22:22:30+02:00","message":"Connecting to signaler"}
+{"level":"info","addr":"wss://weron.up.railway.app/","time":"2022-05-06T22:22:30+02:00","message":"Connecting to signaler"}
 {"level":"info","id":"[\"2001:db8::b9/64\",\"192.0.2.186/24\"]","time":"2022-05-06T22:22:36+02:00","message":"Connected to signaler"}
 {"level":"info","id":"[\"2001:db8::6a/64\",\"192.0.2.107/24\"]","time":"2022-05-06T22:22:36+02:00","message":"Connected to peer"}
 ```
@@ -298,15 +298,15 @@ PING 2001:db8::b9(2001:db8::b9) 56 data bytes
 rtt min/avg/max/mdev = 1.066/1.180/1.361/0.114 ms
 ```
 
-If you temporarly loose the network connection, the network topology changes etc. it will automatically reconnect. For more information and limitations on proprietary operating systems like macOS, see the [IP VPN reference](#layer-3-ip-overlay-networks). You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcip).
+If you temporarily lose the network connection, the network topology changes etc. it will automatically reconnect. For more information and limitations on proprietary operating systems like macOS, see the [IP VPN reference](#layer-3-ip-overlay-networks). You can also embed the utility in your own application using its [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtcip).
 
 ### 7. Create a Layer 2 (Ethernet) Overlay Network with `weron vpn ethernet`
 
-If you want more flexibility or work on non-IP networks, the ethernet VPN is a good choice. It works in a similar way to `n2n` or ZeroTier. Due to API restrictions, this VPN type [is not available on macOS](https://support.apple.com/guide/deployment/system-and-kernel-extensions-in-macos-depa5fb8376f/web); use [Asahi Linux](https://asahilinux.org/), a computer that respects your freedoms or the layer 3 (IP) VPN instead. To get started, launch the VPN on the first peer:
+If you want more flexibility or work on non-IP networks, the Ethernet VPN is a good choice. It works similarly to `n2n` or ZeroTier. Due to API restrictions, this VPN type [is not available on macOS](https://support.apple.com/guide/deployment/system-and-kernel-extensions-in-macos-depa5fb8376f/web); use [Asahi Linux](https://asahilinux.org/), a computer that respects your freedoms or the layer 3 (IP) VPN instead. To get started, launch the VPN on the first peer:
 
 ```shell
 $ sudo weron vpn ethernet --community mycommunity --password mypassword --key mykey
-{"level":"info","addr":"wss://weron.herokuapp.com/","time":"2022-05-06T22:42:10+02:00","message":"Connecting to signaler"}
+{"level":"info","addr":"wss://weron.up.railway.app/","time":"2022-05-06T22:42:10+02:00","message":"Connecting to signaler"}
 {"level":"info","id":"fe:60:a5:8b:81:36","time":"2022-05-06T22:42:11+02:00","message":"Connected to signaler"}
 ```
 
@@ -321,7 +321,7 @@ On another peer, launch the VPN as well:
 
 ```shell
 $ sudo weron vpn ethernet --community mycommunity --password mypassword --key mykey
-{"level":"info","addr":"wss://weron.herokuapp.com/","time":"2022-05-06T22:52:56+02:00","message":"Connecting to signaler"}
+{"level":"info","addr":"wss://weron.up.railway.app/","time":"2022-05-06T22:52:56+02:00","message":"Connecting to signaler"}
 {"level":"info","id":"b2:ac:ae:b6:32:8c","time":"2022-05-06T22:52:57+02:00","message":"Connected to signaler"}
 {"level":"info","id":"fe:60:a5:8b:81:36","time":"2022-05-06T22:52:57+02:00","message":"Connected to peer"}
 ```
@@ -347,11 +347,11 @@ PING 2001:db8::2(2001:db8::2) 56 data bytes
 rtt min/avg/max/mdev = 1.136/1.193/1.239/0.042 ms
 ```
 
-If you temporarly loose the network connection, the network topology changes etc. it will automatically reconnect. You can also embed the utility in your own application using it's [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtceth).
+If you temporarily lose the network connection, the network topology changes etc. it will automatically reconnect. You can also embed the utility in your own application using its [Go API](https://pkg.go.dev/github.com/pojntfx/weron/pkg/wrtceth).
 
 ### 8. Write your own protocol with `wrtcconn`
 
-It is almost trivial to build your own dstributed applications with weron, similarly to how [PeerJS](https://peerjs.com/) works. Here is the core logic behind a simple echo example:
+It is almost trivial to build your own distributed applications with weron, similarly to how [PeerJS](https://peerjs.com/) works. Here is the core logic behind a simple echo example:
 
 ```go
 // ...
@@ -438,8 +438,8 @@ Aliases:
 Flags:
       --api-password string     Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.
       --api-username string     Username for the management API (can also be set using the API_USERNAME env variable). Ignored if any of the OIDC parameters are set. (default "admin")
-      --cleanup                 (Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephermal communities from database and reset client counts before starting
-      --ephermal-communities    Enable the creation of ephermal communities (default true)
+      --cleanup                 (Warning: Only enable this after stopping all other servers accessing the database!) Remove all ephemeral communities from database and reset client counts before starting
+      --ephemeral-communities    Enable the creation of ephemeral communities (default true)
       --heartbeat duration      Time to wait for heartbeats (default 10s)
   -h, --help                    help for signaler
       --laddr string            Listening address (can also be set using the PORT env variable) (default ":1337")
@@ -466,8 +466,8 @@ Aliases:
 
 Available Commands:
   create      Create a persistent community
-  delete      Delete a persistent or ephermal community
-  list        List persistent and ephermal communities
+  delete      Delete a persistent or ephemeral community
+  list        List persistent and ephemeral communities
 
 Flags:
   -h, --help   help for manager
@@ -501,7 +501,7 @@ Flags:
       --kicks duration      Time to wait for kicks (default 5s)
       --names strings       Comma-separated list of names to try and claim one from
       --password string     Password for community
-      --raddr string        Remote address (default "wss://weron.herokuapp.com/")
+      --raddr string        Remote address (default "wss://weron.up.railway.app/")
       --timeout duration    Time to wait for connections (default 10s)
 
 Global Flags:
@@ -529,7 +529,7 @@ Flags:
       --packet-length int   Size of packet to send and acknowledge (default 128)
       --password string     Password for community
       --pause duration      Time to wait before sending next packet (default 1s)
-      --raddr string        Remote address (default "wss://weron.herokuapp.com/")
+      --raddr string        Remote address (default "wss://weron.up.railway.app/")
       --server              Act as a server
       --timeout duration    Time to wait for connections (default 10s)
 
@@ -558,7 +558,7 @@ Flags:
       --packet-count int    Amount of packets to send before waiting for acknowledgement (default 1000)
       --packet-length int   Size of packet to send (default 50000)
       --password string     Password for community
-      --raddr string        Remote address (default "wss://weron.herokuapp.com/")
+      --raddr string        Remote address (default "wss://weron.up.railway.app/")
       --server              Act as a server
       --timeout duration    Time to wait for connections (default 10s)
 
@@ -591,7 +591,7 @@ Flags:
       --max-retries int     Maximum amount of times to try and claim an IP address (default 200)
       --parallel int        Amount of threads to use to decode frames (default 8)
       --password string     Password for community
-      --raddr string        Remote address (default "wss://weron.herokuapp.com/")
+      --raddr string        Remote address (default "wss://weron.up.railway.app/")
       --static              Try to claim the exact IPs specified in the --ips flag statically instead of selecting a random one from the specified network
       --timeout duration    Time to wait for connections (default 10s)
 
@@ -621,7 +621,7 @@ Flags:
       --mac string         MAC address to give to the TAP device (i.e. 3a:f8:de:7b:ef:52) (default is auto-generated; only supported on Linux)
       --parallel int       Amount of threads to use to decode frames (default 8)
       --password string    Password for community
-      --raddr string       Remote address (default "wss://weron.herokuapp.com/")
+      --raddr string       Remote address (default "wss://weron.up.railway.app/")
       --timeout duration   Time to wait for connections (default 10s)
 
 Global Flags:

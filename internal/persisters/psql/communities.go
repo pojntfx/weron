@@ -80,7 +80,7 @@ func (p *CommunitiesPersister) AddClientsToCommunity(
 					return err
 				}
 
-				return persisters.ErrEphermalCommunitiesDisabled
+				return persisters.ErrEphemeralCommunitiesDisabled
 			}
 
 			c = &models.Community{
@@ -191,7 +191,7 @@ func (p *CommunitiesPersister) Cleanup(
 		return err
 	}
 
-	// Delete all ephermal communities
+	// Delete all ephemeral communities
 	if _, err := models.Communities(qm.Where(models.CommunityColumns.Persistent+"= ?", false)).DeleteAll(ctx, tx); err != nil {
 		if err := tx.Rollback(); err != nil {
 			return err

@@ -28,7 +28,7 @@ var (
 var managerListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"lis", "l", "ls"},
-	Short:   "List persistent and ephermal communities",
+	Short:   "List persistent and ephemeral communities",
 	PreRunE: validateRemoteFlags,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -86,7 +86,7 @@ func init() {
 func addRemoteFlags(f *pflag.FlagSet) {
 	f.String(apiUsernameFlag, "admin", "Username for the management API (can also be set using the API_USERNAME env variable). Ignored if any of the OIDC parameters are set.")
 	f.String(apiPasswordFlag, "", "Password for the management API (can also be set using the API_PASSWORD env variable). Ignored if any of the OIDC parameters are set.")
-	f.String(raddrFlag, "https://weron.herokuapp.com/", "Remote address")
+	f.String(raddrFlag, "https://weron.up.railway.app/", "Remote address")
 }
 
 func validateRemoteFlags(cmd *cobra.Command, args []string) error {
