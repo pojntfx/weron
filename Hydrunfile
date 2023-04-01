@@ -8,6 +8,9 @@ if [ "$1" = "test" ]; then
     apt update
     apt install -y docker.io
 
+    # Configure Git
+    git config --global --add safe.directory '*'
+
     # Generate dependencies
     make depend
 
@@ -22,6 +25,9 @@ if [ "$1" = "go" ]; then
     # Install native dependencies
     apt update
     apt install -y curl make docker.io
+
+    # Configure Git
+    git config --global --add safe.directory '*'
 
     # Install bagop
     curl -L -o /tmp/bagop "https://github.com/pojntfx/bagop/releases/latest/download/bagop.linux-$(uname -m)"
@@ -41,6 +47,9 @@ if [ "$1" = "gccgo" ]; then
     # Install native dependencies
     apt update
     apt install -y curl docker.io
+
+    # Configure Git
+    git config --global --add safe.directory '*'
 
     # Install bagccgop
     curl -L -o /tmp/bagccgop "https://github.com/pojntfx/bagccgop/releases/latest/download/bagccgop.linux-$(uname -m)"
