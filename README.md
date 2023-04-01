@@ -1,6 +1,6 @@
 # weron
 
-![Logo](./assets/logo-readme.png)
+![Logo](./docs/logo-readme.png)
 
 Overlay networks based on WebRTC.
 
@@ -638,7 +638,6 @@ All command line arguments described above can also be set using environment var
 
 - [songgao/water](https://github.com/songgao/water) provides the TUN/TAP device library for weron.
 - [pion/webrtc](https://github.com/pion/webrtc) provides the WebRTC functionality.
-- All the rest of the authors who worked on the dependencies used! Thanks a lot!
 
 ## Contributing
 
@@ -664,6 +663,6 @@ Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#w
 
 ## License
 
-weron (c) 2022 Felicitas Pojtinger and contributors
+weron (c) 2023 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0
