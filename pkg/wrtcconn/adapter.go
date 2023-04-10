@@ -656,7 +656,16 @@ func (a *Adapter) Open() (chan string, error) {
 
 									peerLock.Lock()
 									defer peerLock.Unlock()
-									channel, ok := peers[offer.From].channels[dc.Label()]
+									peer, ok := peers[offer.From]
+									if !ok {
+										log.Debug().
+											Str("peerID", offer.From).
+											Str("channelID", dc.Label()).
+											Msg("Could not find peer, continuing")
+
+										return
+									}
+									channel, ok := peer.channels[dc.Label()]
 									if !ok {
 										log.Debug().
 											Str("peerID", offer.From).
