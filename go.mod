@@ -27,6 +27,7 @@ require (
 	github.com/volatiletech/strmangle v0.0.4
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	nhooyr.io/websocket v1.8.7
 )
 
 require (
@@ -39,6 +40,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect

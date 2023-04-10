@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
 	websocketapi "github.com/pojntfx/weron/internal/api/websocket"
 	"github.com/pojntfx/weron/internal/encryption"
 	"github.com/rs/zerolog/log"
+	"nhooyr.io/websocket"
 )
 
 var (
@@ -191,15 +191,16 @@ func (a *Adapter) Open() (chan string, error) {
 				ctx, cancel := context.WithTimeout(a.ctx, a.config.Timeout)
 				defer cancel()
 
-				conn, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
+				wsconn, _, err := websocket.Dial(ctx, u.String(), nil)
 				if err != nil {
 					panic(err)
 				}
+				conn := newWrapWSConn(wsconn, a.config, u.Host)
 
 				defer func() {
 					log.Debug().Str("address", u.String()).Msg("Disconnected from signaler")
 
-					if err := conn.Close(); err != nil {
+					if err := conn.Close(websocket.StatusNormalClosure, ""); err != nil {
 						panic(err)
 					}
 
@@ -220,13 +221,6 @@ func (a *Adapter) Open() (chan string, error) {
 						close(peer.candidates)
 					}
 				}()
-
-				if err := conn.SetReadDeadline(time.Now().Add(a.config.Timeout)); err != nil {
-					panic(err)
-				}
-				conn.SetPongHandler(func(string) error {
-					return conn.SetReadDeadline(time.Now().Add(a.config.Timeout))
-				})
 
 				log.Debug().Str("address", u.String()).Msg("Connected to signaler")
 
@@ -794,7 +788,11 @@ func (a *Adapter) Open() (chan string, error) {
 									}
 								}()
 
-								c.candidates <- webrtc.ICECandidateInit{Candidate: string(candidate.Payload)}
+								c.candidates <- webrtc.ICECandidateInit{
+									Candidate:     string(candidate.Payload),
+									SDPMid:        refVal(""),
+									SDPMLineIndex: refVal(uint16(0)),
+								}
 							}()
 
 							peerLock.Unlock()
@@ -893,13 +891,10 @@ func (a *Adapter) Open() (chan string, error) {
 							Int("len", len(line)).
 							Msg("Sending message to signaler")
 
-						if err := conn.WriteMessage(websocket.TextMessage, line); err != nil {
+						if err := conn.WriteMessage(websocket.MessageBinary, line); err != nil {
 							panic(err)
 						}
 
-						if err := conn.SetWriteDeadline(time.Now().Add(a.config.Timeout)); err != nil {
-							panic(err)
-						}
 					case <-pings.C:
 						log.Trace().
 							Str("address", conn.RemoteAddr().String()).
@@ -907,11 +902,7 @@ func (a *Adapter) Open() (chan string, error) {
 							Str("id", id).
 							Msg("Sending ping to signaler")
 
-						if err := conn.SetWriteDeadline(time.Now().Add(a.config.Timeout)); err != nil {
-							panic(err)
-						}
-
-						if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+						if err := conn.Ping(); err != nil {
 							panic(err)
 						}
 					}
