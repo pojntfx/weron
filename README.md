@@ -266,7 +266,7 @@ For more information, see the [throughput measurement utility reference](#throug
 
 ### 6. Create a Layer 3 (IP) Overlay Network with `weron vpn ip`
 
-If you want to join multiple nodes into an overlay network, the IP VPN is the best choice. It works similarly to i.e. Tailscale/WireGuard and can either dynamically allocate an IP address from a CIDR notation or statically assign one for you. On Windows, make sure to install [TAP-Windows](https://duckduckgo.com/?q=TAP-Windows&t=h_&ia=web) first. To get started, launch the VPN on the first peer:
+If you want to join multiple nodes into an overlay network, the IP VPN is the best choice. It works similarly to i.e. Tailscale/WireGuard and can either dynamically allocate an IP address from a CIDR notation or statically assign one for you. On Windows, make sure to install [TAP-Windows](https://build.openvpn.net/downloads/releases/) first. Also note that due to technical limitations, only one IPv4 or IPv6 network and only one VPN instance at a time is supported on Windows; on macOS, only IPv6 networks are supported and IPv4 networks are ignored. To get started, launch the VPN on the first peer:
 
 ```shell
 $ sudo weron vpn ip --community mycommunity --password mypassword --key mykey --ips 2001:db8::1/64,192.0.2.1/24
@@ -580,16 +580,16 @@ Aliases:
 
 Flags:
       --community string    ID of community to join
-      --dev string          Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)
+      --dev string          Name to give to the TUN device (i.e. weron0) (default is auto-generated; only supported on Linux)
       --force-relay         Force usage of TURN servers
   -h, --help                help for ip
       --ice strings         Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp) (default [stun:stun.l.google.com:19302])
       --id-channel string   Channel to use to negotiate names (default "weron/ip/id")
-      --ips strings         Comma-separated list of IP networks to claim an IP address from and and give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported; on macOS, IPv4 addresses are ignored)
+      --ips strings         Comma-separated list of IP networks to claim an IP address from and and give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IP network (either IPv4 or IPv6) is supported; on macOS, IPv4 networks are ignored)
       --key string          Encryption key for community
       --kicks duration      Time to wait for kicks (default 5s)
       --max-retries int     Maximum amount of times to try and claim an IP address (default 200)
-      --parallel int        Amount of threads to use to decode frames (default 8)
+      --parallel int        Amount of threads to use to decode frames (default 20)
       --password string     Password for community
       --raddr string        Remote address (default "wss://weron.up.railway.app/")
       --static              Try to claim the exact IPs specified in the --ips flag statically instead of selecting a random one from the specified network
@@ -613,13 +613,13 @@ Aliases:
 
 Flags:
       --community string   ID of community to join
-      --dev string         Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)
+      --dev string         Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux and macOS)
       --force-relay        Force usage of TURN servers
   -h, --help               help for ethernet
       --ice strings        Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp) (default [stun:stun.l.google.com:19302])
       --key string         Encryption key for community
       --mac string         MAC address to give to the TAP device (i.e. 3a:f8:de:7b:ef:52) (default is auto-generated; only supported on Linux)
-      --parallel int       Amount of threads to use to decode frames (default 8)
+      --parallel int       Amount of threads to use to decode frames (default 20)
       --password string    Password for community
       --raddr string       Remote address (default "wss://weron.up.railway.app/")
       --timeout duration   Time to wait for connections (default 10s)

@@ -3,40 +3,44 @@ package wrtcip
 import (
 	"fmt"
 	"net"
+	"os/exec"
 
 	"github.com/songgao/water"
-	"os/exec"
 )
 
-func getPlatformSpecificParams(name string) water.PlatformSpecificParams {
-	return water.PlatformSpecificParams{}
-}
+func setupTUN(name string, ips []string) (*water.Interface, int, error) {
+	tun, err := water.New(water.Config{
+		DeviceType: water.TUN,
+		PlatformSpecificParams: water.PlatformSpecificParams{
+			ComponentID: "tap0901",
+			Network:     ips[0],
+		},
+	})
+	if err != nil {
+		return nil, 0, err
+	}
 
-func setIPAddress(linkName string, ipaddr string, ipv4 bool) error {
-	if ipv4 {
-		output, err := exec.Command("netsh", "interface", "ipv4", "set", "address", linkName, "static", ipaddr).CombinedOutput()
+	ip, _, err := net.ParseCIDR(ips[0])
+	if err != nil {
+		return tun, 0, err
+	}
+
+	if ip.To4() != nil {
+		output, err := exec.Command("netsh", "interface", "ipv4", "set", "address", tun.Name(), "static", ips[0]).CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("could not add IPv4 address to interface: %v: %v", string(output), err)
+			return tun, 0, fmt.Errorf("could not add IPv4 address to interface: %v: %v", string(output), err)
 		}
 	} else {
-		output, err := exec.Command("netsh", "interface", "ipv6", "set", "address", linkName, ipaddr).CombinedOutput()
+		output, err := exec.Command("netsh", "interface", "ipv6", "set", "address", tun.Name(), ips[0]).CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("could not add IPv6 address to interface: %v: %v", string(output), err)
+			return tun, 0, fmt.Errorf("could not add IPv6 address to interface: %v: %v", string(output), err)
 		}
 	}
 
-	return nil
-}
-
-func getMTU(linkName string) (int, error) {
-	iface, err := net.InterfaceByName(linkName)
+	iface, err := net.InterfaceByName(tun.Name())
 	if err != nil {
-		return -1, err
+		return tun, 0, err
 	}
 
-	return iface.MTU, nil
-}
-
-func setLinkUp(linkName string) error {
-	return nil
+	return tun, iface.MTU, nil
 }

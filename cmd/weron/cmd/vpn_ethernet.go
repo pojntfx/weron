@@ -107,7 +107,7 @@ func init() {
 	vpnEthernetCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
 	vpnEthernetCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	vpnEthernetCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
-	vpnEthernetCmd.PersistentFlags().String(devFlag, "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
+	vpnEthernetCmd.PersistentFlags().String(devFlag, "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux and macOS)")
 	vpnEthernetCmd.PersistentFlags().String(macFlag, "", "MAC address to give to the TAP device (i.e. 3a:f8:de:7b:ef:52) (default is auto-generated; only supported on Linux)")
 	vpnEthernetCmd.PersistentFlags().Int(parallelFlag, runtime.NumCPU(), "Amount of threads to use to decode frames")
 

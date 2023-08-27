@@ -1,46 +1,40 @@
 package wrtcip
 
 import (
-	"net"
-
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
 )
 
-func getPlatformSpecificParams(name string) water.PlatformSpecificParams {
-	return water.PlatformSpecificParams{
-		Name: name,
-	}
-}
-
-func setIPAddress(linkName string, ipaddr string, ipv4 bool) error {
-	link, err := netlink.LinkByName(linkName)
+func setupTUN(name string, ips []string) (*water.Interface, int, error) {
+	tun, err := water.New(water.Config{
+		DeviceType: water.TUN,
+		PlatformSpecificParams: water.PlatformSpecificParams{
+			Name: name,
+		},
+	})
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 
-	ip, err := netlink.ParseAddr(ipaddr)
+	link, err := netlink.LinkByName(tun.Name())
 	if err != nil {
-		return err
+		return tun, 0, err
 	}
 
-	return netlink.AddrAdd(link, ip)
-}
+	for _, rawIP := range ips {
+		ip, err := netlink.ParseAddr(rawIP)
+		if err != nil {
+			return tun, 0, err
+		}
 
-func getMTU(linkName string) (int, error) {
-	iface, err := net.InterfaceByName(linkName)
-	if err != nil {
-		return -1, err
+		if err := netlink.AddrAdd(link, ip); err != nil {
+			return tun, 0, err
+		}
 	}
 
-	return iface.MTU, nil
-}
-
-func setLinkUp(linkName string) error {
-	link, err := netlink.LinkByName(linkName)
-	if err != nil {
-		return err
+	if err := netlink.LinkSetUp(link); err != nil {
+		return tun, 0, err
 	}
 
-	return netlink.LinkSetUp(link)
+	return tun, link.Attrs().MTU, nil
 }

@@ -37,7 +37,7 @@ if [ "$1" = "go" ]; then
     make depend
 
     # Build
-    CGO_ENABLED=0 bagop -j "$(nproc)" -b "$2" -x '(android/*|ios/*|plan9/*|aix/*|linux/loong64|freebsd/riscv64)' -p "make build/$2 DST=\$DST" -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b "$2" -x '(android/*|ios/*|plan9/*|aix/*|linux/loong64|freebsd/riscv64|wasip1/wasm)' -p "make build/$2 DST=\$DST" -d out
 
     exit 0
 fi

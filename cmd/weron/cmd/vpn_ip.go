@@ -19,7 +19,6 @@ import (
 )
 
 var (
-	errMissingIPs  = errors.New("no IP(s) provided")
 	errInvalidCIDR = errors.New("invalid CIDR notation for IPs")
 )
 
@@ -54,7 +53,7 @@ var vpnIPCmd = &cobra.Command{
 		}
 
 		if len(viper.GetStringSlice(ipsFlag)) <= 0 {
-			return errMissingIPs
+			return wrtcip.ErrMissingIPs
 		}
 
 		for _, ip := range viper.GetStringSlice(ipsFlag) {
@@ -131,8 +130,8 @@ func init() {
 	vpnIPCmd.PersistentFlags().String(keyFlag, "", "Encryption key for community")
 	vpnIPCmd.PersistentFlags().StringSlice(iceFlag, []string{"stun:stun.l.google.com:19302"}, "Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp)")
 	vpnIPCmd.PersistentFlags().Bool(forceRelayFlag, false, "Force usage of TURN servers")
-	vpnIPCmd.PersistentFlags().String(devFlag, "", "Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux, macOS and Windows)")
-	vpnIPCmd.PersistentFlags().StringSlice(ipsFlag, []string{""}, "Comma-separated list of IP networks to claim an IP address from and and give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IPv4 and one IPv6 address are supported; on macOS, IPv4 addresses are ignored)")
+	vpnIPCmd.PersistentFlags().String(devFlag, "", "Name to give to the TUN device (i.e. weron0) (default is auto-generated; only supported on Linux)")
+	vpnIPCmd.PersistentFlags().StringSlice(ipsFlag, []string{""}, "Comma-separated list of IP networks to claim an IP address from and and give to the TUN device (i.e. 2001:db8::1/32,192.0.2.1/24) (on Windows, only one IP network (either IPv4 or IPv6) is supported; on macOS, IPv4 networks are ignored)")
 	vpnIPCmd.PersistentFlags().Bool(staticFlag, false, "Try to claim the exact IPs specified in the --"+ipsFlag+" flag statically instead of selecting a random one from the specified network")
 	vpnIPCmd.PersistentFlags().Int(parallelFlag, runtime.NumCPU(), "Amount of threads to use to decode frames")
 	vpnIPCmd.PersistentFlags().String(idChannelFlag, services.IPID, "Channel to use to negotiate names")

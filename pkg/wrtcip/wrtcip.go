@@ -3,6 +3,7 @@ package wrtcip
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -27,6 +28,8 @@ const (
 
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+	ErrMissingIPs = errors.New("no IPs provided")
 )
 
 // AdapterConfig configures the adapter
@@ -53,8 +56,10 @@ type Adapter struct {
 	cancel  context.CancelFunc
 	adapter *wrtcconn.NamedAdapter
 	tun     *water.Interface
-	mtu     int
 	ids     chan string
+
+	mtu     int
+	mtuCond *sync.Cond
 }
 
 type peerWithIP struct {
@@ -90,21 +95,14 @@ func NewAdapter(
 
 		cancel: cancel,
 		ids:    make(chan string),
+
+		mtuCond: sync.NewCond(&sync.Mutex{}),
 	}
 }
 
-// Open connects the adapter to the signaler and creates the TUN device
+// Open connects the adapter to the signaler
 func (a *Adapter) Open() error {
 	log.Trace().Msg("Opening adapter")
-
-	var err error
-	a.tun, err = water.New(water.Config{
-		DeviceType:             water.TUN,
-		PlatformSpecificParams: getPlatformSpecificParams(a.config.Device),
-	})
-	if err != nil {
-		return err
-	}
 
 	for _, rawIP := range a.config.CIDRs {
 		ip, _, err := net.ParseCIDR(rawIP)
@@ -213,12 +211,11 @@ func (a *Adapter) Open() error {
 		a.ctx,
 	)
 
+	var err error
 	a.ids, err = a.adapter.Open()
 	if err != nil {
 		return err
 	}
-
-	a.mtu, err = getMTU(a.tun.Name())
 
 	return err
 }
@@ -227,8 +224,10 @@ func (a *Adapter) Open() error {
 func (a *Adapter) Close() error {
 	log.Trace().Msg("Closing adapter")
 
-	if err := a.tun.Close(); err != nil {
-		return err
+	if a.tun != nil {
+		if err := a.tun.Close(); err != nil {
+			return err
+		}
 	}
 
 	return a.adapter.Close()
@@ -238,61 +237,6 @@ func (a *Adapter) Close() error {
 func (a *Adapter) Wait() error {
 	peers := map[string]*peerWithIP{}
 	var peersLock sync.Mutex
-
-	go func() {
-		sem := semaphore.NewWeighted(int64(a.config.Parallel))
-
-		for {
-			buf := make([]byte, a.mtu+headerLength)
-
-			if _, err := a.tun.Read(buf); err != nil {
-				log.Debug().Err(err).Msg("Could not read from TUN device, continuing")
-
-				continue
-			}
-
-			go func() {
-				if err := sem.Acquire(a.ctx, 1); err != nil {
-					log.Debug().Err(err).Msg("Could not acquire semaphore, stopping")
-
-					return
-				}
-				defer sem.Release(1)
-
-				var dst net.IP
-				var packet layers.IPv4
-				if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
-					var packet layers.IPv6
-					if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
-						log.Debug().Err(err).Msg("Could not unmarshal packet, stopping")
-
-						return
-					} else {
-						dst = packet.DstIP
-					}
-				} else {
-					dst = packet.DstIP
-				}
-
-				peersLock.Lock()
-				for _, peer := range peers {
-					// Send if matching destination, multicast or broadcast IP
-					if dst.Equal(peer.ip) || ((dst.IsMulticast() || dst.IsInterfaceLocalMulticast() || dst.IsInterfaceLocalMulticast()) && len(dst) == len(peer.ip)) || (peer.ip.To4() != nil && dst.Equal(getBroadcastAddr(peer.net))) {
-						if _, err := peer.Conn.Write(buf); err != nil {
-							log.Debug().
-								Err(err).
-								Str("channelID", peer.ChannelID).
-								Str("peerID", peer.PeerID).
-								Msg("Could not write to peer, continuing")
-
-							continue
-						}
-					}
-				}
-				peersLock.Unlock()
-			}()
-		}
-	}()
 
 	for {
 		select {
@@ -318,27 +262,81 @@ func (a *Adapter) Wait() error {
 				return err
 			}
 
-			for _, rawIP := range ips {
-				ip, _, err := net.ParseCIDR(rawIP)
-				if err != nil {
-					log.Debug().Err(err).Msg("Could not parse IP address, continuing")
-
-					continue
-				}
-
-				// macOS does not support IPv4 TUN
-				if runtime.GOOS == "darwin" && ip.To4() != nil {
-					continue
-				}
-
-				if err = setIPAddress(a.tun.Name(), rawIP, ip.To4() != nil); err != nil {
-					return err
-				}
+			if len(ips) <= 0 {
+				return ErrMissingIPs
 			}
 
-			if err := setLinkUp(a.tun.Name()); err != nil {
+			// Close old TUN device if it isn't already closed
+			if a.tun != nil {
+				_ = a.tun.Close()
+			}
+
+			a.mtuCond.L.Lock()
+			var err error
+			a.tun, a.mtu, err = setupTUN(a.config.Device, ips)
+			if err != nil {
+				a.mtuCond.L.Unlock()
+
 				return err
 			}
+			// Signal that the MTU is available/the TUN device is started
+			a.mtuCond.Broadcast()
+			a.mtuCond.L.Unlock()
+
+			go func() {
+				sem := semaphore.NewWeighted(int64(a.config.Parallel))
+
+				for {
+					buf := make([]byte, a.mtu+headerLength) // No need for the MTU cond here since its guaranteed to be set
+
+					if _, err := a.tun.Read(buf); err != nil {
+						log.Debug().Err(err).Msg("Could not read from TUN device, returning")
+
+						return
+					}
+
+					go func() {
+						if err := sem.Acquire(a.ctx, 1); err != nil {
+							log.Debug().Err(err).Msg("Could not acquire semaphore, stopping")
+
+							return
+						}
+						defer sem.Release(1)
+
+						var dst net.IP
+						var packet layers.IPv4
+						if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
+							var packet layers.IPv6
+							if err := packet.DecodeFromBytes(buf, gopacket.NilDecodeFeedback); err != nil {
+								log.Debug().Err(err).Msg("Could not unmarshal packet, stopping")
+
+								return
+							} else {
+								dst = packet.DstIP
+							}
+						} else {
+							dst = packet.DstIP
+						}
+
+						peersLock.Lock()
+						for _, peer := range peers {
+							// Send if matching destination, multicast or broadcast IP
+							if dst.Equal(peer.ip) || ((dst.IsMulticast() || dst.IsInterfaceLocalMulticast() || dst.IsInterfaceLocalMulticast()) && len(dst) == len(peer.ip)) || (peer.ip.To4() != nil && dst.Equal(getBroadcastAddr(peer.net))) {
+								if _, err := peer.Conn.Write(buf); err != nil {
+									log.Debug().
+										Err(err).
+										Str("channelID", peer.ChannelID).
+										Str("peerID", peer.PeerID).
+										Msg("Could not write to peer, continuing")
+
+									continue
+								}
+							}
+						}
+						peersLock.Unlock()
+					}()
+				}
+			}()
 		case peer := <-a.adapter.Accept():
 			log.Debug().Str("channelID", peer.ChannelID).Str("peerID", peer.PeerID).Msg("Connected to peer")
 
@@ -401,7 +399,12 @@ func (a *Adapter) Wait() error {
 				}
 
 				for {
+					a.mtuCond.L.Lock()
+					if a.mtu <= 0 {
+						a.mtuCond.Wait()
+					}
 					buf := make([]byte, a.mtu+headerLength)
+					a.mtuCond.L.Unlock()
 
 					if _, err := peer.Conn.Read(buf); err != nil {
 						log.Debug().
