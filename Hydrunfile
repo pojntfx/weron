@@ -26,37 +26,18 @@ if [ "$1" = "go" ]; then
     apt update
     apt install -y curl make docker.io
 
-    # Configure Git
-    git config --global --add safe.directory '*'
-
     # Install bagop
     curl -L -o /tmp/bagop "https://github.com/pojntfx/bagop/releases/latest/download/bagop.linux-$(uname -m)"
     install /tmp/bagop /usr/local/bin
+
+    # Configure Git
+    git config --global --add safe.directory '*'
 
     # Generate dependencies
     make depend
 
     # Build
     CGO_ENABLED=0 bagop -j "$(nproc)" -b "$2" -x '(android/*|ios/*|plan9/*|aix/*|linux/loong64|freebsd/riscv64|wasip1/wasm)' -p "make build/$2 DST=\$DST" -d out
-
-    exit 0
-fi
-
-# gccgo
-if [ "$1" = "gccgo" ]; then
-    # Install native dependencies
-    apt update
-    apt install -y curl docker.io
-
-    # Configure Git
-    git config --global --add safe.directory '*'
-
-    # Install bagccgop
-    curl -L -o /tmp/bagccgop "https://github.com/pojntfx/bagccgop/releases/latest/download/bagccgop.linux-$(uname -m)"
-    install /tmp/bagccgop /usr/local/bin
-
-    # Build
-    GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x|linux/ppc64|linux/riscv64|linux/mips64|linux/ppc64le)' -j1 -b "$2" -n -s 'make' -p "make build/$2 DST=\$DST" -d out
 
     exit 0
 fi

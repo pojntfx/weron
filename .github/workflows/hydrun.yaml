@@ -17,23 +17,16 @@ jobs:
         target:
           - id: test
             src: .
-            os: golang:bullseye
+            os: golang:bookworm
             flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
             cmd: GOFLAGS="-short" ./Hydrunfile test
-            dst: out/*
-          - id: go
+            dst: out/nonexistent
+          - id: go-weron
             src: .
-            os: golang:bullseye
+            os: golang:bookworm
             flags: -e '--privileged -v /var/run/docker.sock:/var/run/docker.sock --net host'
             cmd: ./Hydrunfile go weron
             dst: out/*
-          # FIXME: This fails with `error: reference to undefined field or method 'HandshakeContext'`
-          # - id: gccgo
-          #   src: .
-          #   os: ghcr.io/pojntfx/bagccgop-base-sid
-          #   flags: -e '--privileged'
-          #   cmd: ./Hydrunfile gccgo weron
-          #   dst: out/*
 
     steps:
       - name: Maximize build space
@@ -61,6 +54,7 @@ jobs:
         with:
           name: ${{ matrix.target.id }}
           path: ${{ matrix.target.dst }}
+
   publish-linux:
     runs-on: ubuntu-latest
     needs: build-linux
@@ -72,12 +66,15 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           path: /tmp/out
+      - name: Extract branch name
+        id: extract_branch
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       - name: Publish pre-release to GitHub releases
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: unstable
+          automatic_release_tag: release-${{ steps.extract_branch.outputs.branch }}
           prerelease: true
           files: |
             /tmp/out/*/*
