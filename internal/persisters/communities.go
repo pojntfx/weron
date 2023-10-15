@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrEphemeralCommunitiesDisabled = errors.New("creation of ephemeral communites is disabled")
+	ErrEphemeralCommunitiesDisabled = errors.New("creation of ephemeral communities is disabled")
 )
 
 type Community struct {
