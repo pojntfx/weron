@@ -19,7 +19,7 @@ jobs:
           - id: weron-linux-amd64
             src: .
             image: ghcr.io/pojntfx/weron
-            arch: "linux/amd64,linux/arm/v5,linux/arm/v7,linux/386,linux/s390x" # linux/mips64le,linux/ppc64le
+            arch: "linux/amd64,linux/arm/v7,linux/386,linux/s390x" # linux/mips64le,linux/ppc64le,linux/arm/v5
             runner: ubuntu-latest
           - id: weron-linux-arm64-v8
             src: .
