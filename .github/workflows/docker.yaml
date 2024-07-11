@@ -1,4 +1,4 @@
-name: Docker CI
+name: Docke CI
 
 on:
   push:
@@ -7,68 +7,112 @@ on:
     - cron: "0 0 * * 0"
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build-oci-images:
+    runs-on: ${{ matrix.target.runner }}
     permissions:
       contents: read
       packages: write
+      id-token: write
     strategy:
       matrix:
         target:
-          - src: .
+          - id: weron-linux-amd64
+            src: .
             image: ghcr.io/pojntfx/weron
-            arch: "linux/amd64,linux/arm/v5,linux/arm/v7,linux/arm64/v8,linux/386,linux/s390x" # linux/mips64le,linux/ppc64le,
+            arch: "linux/amd64,linux/arm/v5,linux/arm/v7,linux/386,linux/s390x" # linux/mips64le,linux/ppc64le
+            runner: ubuntu-latest
+          - id: weron-linux-arm64-v8
+            src: .
+            image: ghcr.io/pojntfx/weron
+            arch: "linux/arm64/v8"
+            runner: ubicloud-standard-4-arm
 
     steps:
-      - name: Maximize build space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
+        uses: docker/setup-buildx-action@v3
+      - name: Login to registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up metadata
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.target.image }}
+      - name: Build and push image by digest to registry
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.target.src }}
+          file: ${{ matrix.target.src }}/Dockerfile
+          platforms: ${{ matrix.target.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ matrix.target.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Export digest
+        run: |
+          mkdir -p "/tmp/digests"
+          export DIGEST="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${DIGEST#sha256:}"
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.target.id }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-oci-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    needs: build-oci-images
+    strategy:
+      matrix:
+        target:
+          - idprefix: weron-linux-
+            image: ghcr.io/pojntfx/weron
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
           images: ${{ matrix.target.image }}
           tags: type=semver,pattern={{version}}
-      - name: Build image
-        uses: docker/build-push-action@v2
+      - name: Download digests
+        uses: actions/download-artifact@v4
         with:
-          context: ${{ matrix.target.src }}
-          file: ${{ matrix.target.src }}/Dockerfile
-          platforms: ${{ matrix.target.arch }}
-          push: false
-          tags: ${{ matrix.target.image }}:unstable
-          labels: ${{ steps.meta.outputs.labels }}
-      - name: Push pre-release image to Docker Hub
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: docker/build-push-action@v2
-        with:
-          context: ${{ matrix.target.src }}
-          file: ${{ matrix.target.src }}/Dockerfile
-          platforms: ${{ matrix.target.arch }}
-          push: true
-          tags: ${{ matrix.target.image }}:unstable
-          labels: ${{ steps.meta.outputs.labels }}
-      - name: Push release image to Docker Hub
+          path: /tmp/digests
+          pattern: digests-${{ matrix.target.idprefix }}*
+          merge-multiple: true
+      - name: Create pre-release manifest list and push to registry
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create --tag "${{ matrix.target.image }}:${{ github.ref_name }}" $(printf '${{ matrix.target.image }}@sha256:%s ' *)
+      - name: Create release manifest list and push to registry
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: docker/build-push-action@v2
-        with:
-          context: ${{ matrix.target.src }}
-          file: ${{ matrix.target.src }}/Dockerfile
-          platforms: ${{ matrix.target.arch }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create --tag "${{ steps.meta.outputs.tags }}"" $(printf '${{ matrix.target.image }}@sha256:%s ' *)
