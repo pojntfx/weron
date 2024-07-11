@@ -47,7 +47,7 @@ clean:
 # Dependencies
 depend:
 	docker run -d --name weron-postgres -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=weron_communities postgres
-	docker run -d --name weron-redis -p 6379:6379 redis
+	docker run -d --name weron-redis -p 6379:6379 valkey/valkey
 	docker exec weron-postgres bash -c 'until pg_isready; do sleep 1; done'
 	go install github.com/rubenv/sql-migrate/sql-migrate@latest
 	go install github.com/volatiletech/sqlboiler/v4@latest
