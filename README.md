@@ -1,23 +1,21 @@
+<img alt="Project icon" style="vertical-align: middle;" src="./docs/icon.svg" width="128" height="128" align="left">
+
 # weron
 
-![Logo](./docs/logo-readme.png)
-
 Overlay networks based on WebRTC.
-
-⚠️ weron has not yet been audited! While we try to make weron as secure as possible, it has not yet undergone a formal security audit by a third party. Please keep this in mind if you use it for security-critical applications. ⚠️
 
 [![hydrun CI](https://github.com/pojntfx/weron/actions/workflows/hydrun.yaml/badge.svg)](https://github.com/pojntfx/weron/actions/workflows/hydrun.yaml)
 [![Docker CI](https://github.com/pojntfx/weron/actions/workflows/docker.yaml/badge.svg)](https://github.com/pojntfx/weron/actions/workflows/docker.yaml)
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.18-61CFDD.svg)
 [![Go Reference](https://pkg.go.dev/badge/github.com/pojntfx/weron.svg)](https://pkg.go.dev/github.com/pojntfx/weron)
+[![TypeScript docs](https://img.shields.io/badge/TypeScript%20-docs-blue.svg)](https://pojntfx.github.io/weron)
 [![Matrix](https://img.shields.io/matrix/weron:matrix.org)](https://matrix.to/#/#weron:matrix.org?via=matrix.org)
-[![Binary Downloads](https://img.shields.io/github/downloads/pojntfx/weron/total?label=binary%20downloads)](https://github.com/pojntfx/weron/releases)
 
 ## Overview
 
 weron provides lean, fast & secure overlay networks based on WebRTC.
 
-It enables you too ...
+It enables you to:
 
 - **Access nodes behind NAT**: Because weron uses WebRTC to establish connections between nodes, it can easily traverse corporate firewalls and NATs using STUN, or even use a TURN server to tunnel traffic. This can be very useful to for example SSH into your homelab without forwarding any ports on your router.
 - **Secure your home network**: Due to the relatively low overhead of WebRTC in low-latency networks, weron can be used to secure traffic between nodes in a LAN without a significant performance hit.
@@ -26,6 +24,14 @@ It enables you too ...
 - **Write your own peer-to-peer protocols**: The simple API makes writing distributed applications with automatic reconnects, multiple datachannels etc. easy.
 
 ## Installation
+
+### Library
+
+You can add weron to your Go project by running the following:
+
+```shell
+$ go get github.com/pojntfx/weron/...@latest
+```
 
 ### Containerized
 
@@ -62,7 +68,7 @@ PS> Invoke-WebRequest https://github.com/pojntfx/weron/releases/latest/download/
 
 You can find binaries for more operating systems and architectures on [GitHub releases](https://github.com/pojntfx/weron/releases).
 
-## Usage
+## Tutorial
 
 > TL;DR: Join a layer 3 (IP) overlay network on the hosted signaling server with `sudo weron vpn ip --community mycommunity --password mypassword --key mykey --ips 2001:db8::1/32,192.0.2.1/24` and a layer 2 (Ethernet) overlay network with `sudo weron vpn ethernet --community mycommunity --password mypassword --key mykey`
 
@@ -392,6 +398,10 @@ You can either use the [minimal adapter](https://pkg.go.dev/github.com/pojntfx/w
 
 ## Reference
 
+### Library API
+
+- [![Go Reference](https://pkg.go.dev/badge/github.com/pojntfx/weron.svg)](https://pkg.go.dev/github.com/pojntfx/weron)
+
 ### Command Line Arguments
 
 ```shell
@@ -636,6 +646,7 @@ All command line arguments described above can also be set using environment var
 
 ## Acknowledgements
 
+- [Font Awesome](https://fontawesome.com/) provides the assets used for the icon and logo.
 - [songgao/water](https://github.com/songgao/water) provides the TUN/TAP device library for weron.
 - [pion/webrtc](https://github.com/pion/webrtc) provides the WebRTC functionality.
 
@@ -650,19 +661,17 @@ $ git clone https://github.com/pojntfx/weron.git
 $ cd weron
 $ make depend
 $ make && sudo make install
-$ weron signal # Starts the signaling server
+$ weron signaler # Starts the signaling server
 # In another terminal
 $ weron chat --raddr ws://localhost:1337 --community mycommunity --password mypassword --key mykey --names user1,user2,user3 --channels one,two,three
 # In another terminal
 $ weron chat --raddr ws://localhost:1337 --community mycommunity --password mypassword --key mykey --names user1,user2,user3 --channels one,two,three
 ```
 
-Of course, you can also contribute to the utilities and VPNs like this.
-
 Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#weron:matrix.org?via=matrix.org)!
 
 ## License
 
-weron (c) 2023 Felicitas Pojtinger and contributors
+weron (c) 2024 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0
