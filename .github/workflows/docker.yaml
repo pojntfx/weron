@@ -18,11 +18,13 @@ jobs:
         target:
           - id: weron-linux-amd64
             src: .
+            file: Dockerfile
             image: ghcr.io/pojntfx/weron
             arch: "linux/amd64,linux/arm/v7,linux/386,linux/s390x" # linux/mips64le,linux/ppc64le,linux/arm/v5
             runner: ubuntu-latest
           - id: weron-linux-arm64-v8
             src: .
+            file: Dockerfile
             image: ghcr.io/pojntfx/weron
             arch: "linux/arm64/v8"
             runner: ubicloud-standard-4-arm
@@ -50,7 +52,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.target.src }}
-          file: ${{ matrix.target.src }}/Dockerfile
+          file: ${{ matrix.target.src }}/${{ matrix.target.file }}
           platforms: ${{ matrix.target.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ matrix.target.image }},push-by-digest=true,name-canonical=true,push=true
@@ -116,3 +118,4 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create --tag "${{ steps.meta.outputs.tags }}"" $(printf '${{ matrix.target.image }}@sha256:%s ' *)
+
