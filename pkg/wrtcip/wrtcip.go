@@ -383,8 +383,9 @@ func (a *Adapter) Wait() error {
 					}
 
 					peersLock.Lock()
-					for _, ip := range ips {
-						delete(peers, ip)
+					for _, rawIP := range ips {
+						ip, _, _ := net.ParseCIDR(rawIP)
+						delete(peers, ip.String())
 					}
 					peersLock.Unlock()
 				}()
