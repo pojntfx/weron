@@ -674,6 +674,6 @@ Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#w
 
 ## License
 
-weron (c) 2024 Felicitas Pojtinger and contributors
+weron (c) 2025 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0

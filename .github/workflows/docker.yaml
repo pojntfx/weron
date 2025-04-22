@@ -117,5 +117,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create --tag "${{ steps.meta.outputs.tags }}"" $(printf '${{ matrix.target.image }}@sha256:%s ' *)
-
+          TAGS=$(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ' ')
+          for TAG in $TAGS; do
+            docker buildx imagetools create --tag "$TAG" $(printf '${{ matrix.target.image }}@sha256:%s ' *);
+          done

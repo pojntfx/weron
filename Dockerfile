@@ -1,5 +1,5 @@
 # Build container
-FROM golang:bullseye AS build
+FROM golang:bookworm AS build
 
 # Setup environment
 RUN mkdir -p /data
@@ -7,14 +7,14 @@ WORKDIR /data
 
 # Build the release
 COPY . .
-RUN make
+RUN make build/weron
 
 # Extract the release
 RUN mkdir -p /out
 RUN cp out/weron /out/weron
 
 # Release container
-FROM debian:bullseye
+FROM debian:bookworm
 
 # Add certificates
 RUN apt update

@@ -37,7 +37,7 @@ test:
 
 # Benchmark
 benchmark:
-	go test -timeout 3600s -bench=./... ./...
+	go test -timeout 3600s -bench=. ./...
 
 # Clean
 clean:
