@@ -56,7 +56,8 @@ func Decrypt(data, password []byte) ([]byte, error) {
 func deriveKey(password []byte) []byte {
 	buf := make([]byte, 32) // Will use AES-256
 
-	copy(buf, sha256.New224().Sum(password)) // Fill the rest of the hash with zeros (SHA-224 leads to a 28 byte long hash)
+	h := sha256.Sum224(password)
+	copy(buf, h[:]) // Fill the rest of the hash with zeros (SHA-224 leads to a 28 byte long hash)
 
 	return buf
 }
