@@ -12,8 +12,9 @@ func setupTUN(name string, ips []string) (*water.Interface, int, error) {
 	tun, err := water.New(water.Config{
 		DeviceType: water.TUN,
 		PlatformSpecificParams: water.PlatformSpecificParams{
-			ComponentID: "tap0901",
-			Network:     ips[0],
+			ComponentID:   "tap0901",
+			Network:       ips[0],
+			InterfaceName: name,
 		},
 	})
 	if err != nil {

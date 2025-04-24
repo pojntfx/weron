@@ -592,7 +592,7 @@ Aliases:
 
 Flags:
       --community string    ID of community to join
-      --dev string          Name to give to the TUN device (i.e. weron0) (default is auto-generated; only supported on Linux)
+      --dev string          Name to give to the TUN device (i.e. weron0) (default is auto-generated)
       --force-relay         Force usage of TURN servers
   -h, --help                help for ip
       --ice strings         Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp) (default [stun:stun.l.google.com:19302])
@@ -625,7 +625,7 @@ Aliases:
 
 Flags:
       --community string   ID of community to join
-      --dev string         Name to give to the TAP device (i.e. weron0) (default is auto-generated; only supported on Linux and macOS)
+      --dev string         Name to give to the TAP device (i.e. weron0) (default is auto-generated)
       --force-relay        Force usage of TURN servers
   -h, --help               help for ethernet
       --ice strings        Comma-separated list of STUN servers (in format stun:host:port) and TURN servers to use (in format username:credential@turn:host:port) (i.e. username:credential@turn:global.turn.twilio.com:3478?transport=tcp) (default [stun:stun.l.google.com:19302])
