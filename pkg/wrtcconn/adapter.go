@@ -2,8 +2,10 @@ package wrtcconn
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -191,7 +193,13 @@ func (a *Adapter) Open() (chan string, error) {
 				ctx, cancel := context.WithTimeout(a.ctx, a.config.Timeout)
 				defer cancel()
 
-				conn, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
+				headers := http.Header{}
+				if u.User != nil {
+					headers.Set("Authorization", "Basic " + base64.StdEncoding.EncodeToString([]byte(u.User.String())))
+					u.User = nil
+				}
+
+				conn, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), headers)
 				if err != nil {
 					panic(err)
 				}
